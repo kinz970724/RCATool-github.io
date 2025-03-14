@@ -112,23 +112,16 @@
 <body>
   <h1>Root Cause Analysis</h1>
 
-  <!-- 
-    1) Filter by Asset Code with a datalist. 
-       We load suggestions from assetCodes.txt (optional).
-  -->
+  <!-- ASSET CODE FILTER for displayed entries -->
   <label for="searchCodeInput">Filter by Asset Code (optional):</label>
-  <input
-    type="text"
-    id="searchCodeInput"
-    placeholder="e.g. 131-CON-01..."
-    list="codeSuggestions"
-  />
-  <datalist id="codeSuggestions"></datalist>
+  <input type="text" id="searchCodeInput" placeholder="e.g. 131-CON-01..." />
 
   <!-- The Add Entry Form -->
   <form id="entryForm">
-    <label for="assetCodeInput">Asset Code:</label>
-    <input type="text" id="assetCodeInput" placeholder="Enter asset code" required />
+    <!-- ASSET CODE with DataList (suggestions loaded from assetCodes.txt) -->
+    <label for="assetCodeInput">Asset Code (Search or type custom):</label>
+    <input type="text" id="assetCodeInput" placeholder="e.g. 131-CON-01..." list="codeSuggestions" required />
+    <datalist id="codeSuggestions"></datalist>
 
     <label for="incidentDateInput">Incident Date:</label>
     <input type="date" id="incidentDateInput" />
@@ -136,12 +129,8 @@
     <!-- TIME SELECTOR -->
     <label for="timeWrapper">Artisan Clock-In Time:</label>
     <div id="timeWrapper" style="display: flex; gap: 10px;">
-      <select id="hourSelect" style="width: 50%;">
-        <!-- Populated by JS -->
-      </select>
-      <select id="minuteSelect" style="width: 50%;">
-        <!-- Populated by JS -->
-      </select>
+      <select id="hourSelect" style="width: 50%;"></select>
+      <select id="minuteSelect" style="width: 50%;"></select>
     </div>
 
     <label for="responsiblePersonInput">Responsible Person:</label>
@@ -202,25 +191,6 @@
 
   <script>
     document.addEventListener("DOMContentLoaded", () => {
-      ////////////////////////////////////////////////////////////////////////////
-      // 0) (Optional) Load asset codes & store them for datalist suggestions
-      ////////////////////////////////////////////////////////////////////////////
-      let allCodes = [];
-      fetch('assetCodes.txt')
-        .then(res => {
-          if (!res.ok) {
-            throw new Error('Could not load assetCodes.txt');
-          }
-          return res.text();
-        })
-        .then(data => {
-          allCodes = data
-            .split('\n')
-            .map(line => line.trim())
-            .filter(line => line !== '');
-        })
-        .catch(err => console.error("assetCodes.txt load error:", err));
-
       ////////////////////////////////////////////////////////////////////////////
       // 1) IndexedDB Setup
       ////////////////////////////////////////////////////////////////////////////
@@ -313,7 +283,7 @@
       }
 
       ////////////////////////////////////////////////////////////////////////////
-      // 2) DOM elements
+      // 2) DOM Elements
       ////////////////////////////////////////////////////////////////////////////
       const searchCodeInput        = document.getElementById('searchCodeInput');
       const codeSuggestions        = document.getElementById('codeSuggestions');
@@ -334,16 +304,52 @@
       const pdfOrientationSelect   = document.getElementById('pdfOrientation');
 
       ////////////////////////////////////////////////////////////////////////////
-      // 3) Time Selector Initialization
+      // 3) DataList for Asset Code Suggestions
       ////////////////////////////////////////////////////////////////////////////
-      // Populate the hour dropdown (0-23)
+      let allCodes = [];
+      // If you have an assetCodes.txt file, uncomment the fetch below:
+      fetch('assetCodes.txt')
+        .then(res => {
+          if (!res.ok) throw new Error('Could not load assetCodes.txt');
+          return res.text();
+        })
+        .then(data => {
+          allCodes = data.split('\n')
+                         .map(line => line.trim())
+                         .filter(line => line !== '');
+        })
+        .catch(err => console.error("Error fetching assetCodes.txt:", err));
+
+      // Update the <datalist> with up to 50 matching suggestions
+      function updateCodeSuggestions() {
+        codeSuggestions.innerHTML = '';
+        const typed = assetCodeInput.value.trim().toLowerCase();
+        const MAX_SUGGESTIONS = 50;
+        if (!typed) {
+          // If empty, optionally show all (or none):
+          // allCodes.slice(0, MAX_SUGGESTIONS).forEach(...)
+          return;
+        }
+        let matched = allCodes.filter(code => code.toLowerCase().includes(typed));
+        matched.slice(0, MAX_SUGGESTIONS).forEach(code => {
+          const opt = document.createElement('option');
+          opt.value = code;
+          codeSuggestions.appendChild(opt);
+        });
+      }
+
+      // Event: whenever user types in assetCodeInput, update suggestions (debounced)
+      assetCodeInput.addEventListener('input', debounce(updateCodeSuggestions, 300));
+
+      ////////////////////////////////////////////////////////////////////////////
+      // 4) Populate Time Selector (0–23 for hours, 0–59 for minutes)
+      ////////////////////////////////////////////////////////////////////////////
       for (let h = 0; h < 24; h++) {
         const opt = document.createElement('option');
         opt.value = String(h).padStart(2, '0');
         opt.textContent = String(h).padStart(2, '0');
         hourSelect.appendChild(opt);
       }
-      // Populate the minute dropdown (0-59)
       for (let m = 0; m < 60; m++) {
         const opt = document.createElement('option');
         opt.value = String(m).padStart(2, '0');
@@ -352,7 +358,7 @@
       }
 
       ////////////////////////////////////////////////////////////////////////////
-      // 4) Debounce Helper
+      // 5) Debounce Helper
       ////////////////////////////////////////////////////////////////////////////
       function debounce(fn, delay) {
         let timeout;
@@ -363,35 +369,17 @@
       }
 
       ////////////////////////////////////////////////////////////////////////////
-      // 5) Update <datalist> for code suggestions (limit to 50)
-      ////////////////////////////////////////////////////////////////////////////
-      function updateCodeSuggestions() {
-        codeSuggestions.innerHTML = '';
-        const typed = searchCodeInput.value.trim().toLowerCase();
-        let matched = typed
-          ? allCodes.filter(code => code.toLowerCase().includes(typed))
-          : allCodes;
-        const MAX_SUGGESTIONS = 50;
-        matched.slice(0, MAX_SUGGESTIONS).forEach(code => {
-          const opt = document.createElement('option');
-          opt.value = code;
-          codeSuggestions.appendChild(opt);
-        });
-      }
-
-      ////////////////////////////////////////////////////////////////////////////
-      // 6) Render the table with filtering
+      // 6) Render the Table (Filter by Asset Code in searchCodeInput)
       ////////////////////////////////////////////////////////////////////////////
       function renderEntries() {
         entriesTableBody.innerHTML = '';
         const filterText = searchCodeInput.value.trim().toLowerCase();
-        let rowsToShow = filterText
-          ? entries.filter(entry =>
-              (entry.assetCode || '').toLowerCase().includes(filterText)
-            )
+        let rowsToShow = filterText 
+          ? entries.filter(entry => (entry.assetCode || '').toLowerCase().includes(filterText))
           : entries;
 
-        rowsToShow = rowsToShow.slice(0, 50); // Limit to 50 rows
+        // Limit the display to avoid massive tables if needed
+        rowsToShow = rowsToShow.slice(0, 50);
 
         rowsToShow.forEach(entry => {
           const row = document.createElement('tr');
@@ -480,7 +468,7 @@
           taskTd.appendChild(taskArea);
           row.appendChild(taskTd);
 
-          // Fault Noted
+          // Fault Noted (5 Why)
           const faultTd = document.createElement('td');
           faultTd.setAttribute('data-label', 'Fault Noted (5 Why)');
           const faultArea = document.createElement('textarea');
@@ -542,21 +530,24 @@
       }
 
       ////////////////////////////////////////////////////////////////////////////
-      // 7) Add new entry form handling
+      // 7) Form Submission => Add Entry => Reload
       ////////////////////////////////////////////////////////////////////////////
       entryForm.addEventListener('submit', e => {
         e.preventDefault();
-        const code          = assetCodeInput.value.trim();
-        const incidentDate  = incidentDateInput.value.trim();
-        const hourVal       = hourSelect.value;    // "00" to "23"
-        const minuteVal     = minuteSelect.value;  // "00" to "59"
-        const combinedTime  = hourVal + ":" + minuteVal; // store clock-in as "HH:MM"
-        const responsible   = responsiblePersonInput.value.trim();
-        const priorityVal   = priorityInput.value.trim();
-        const taskPerformed = taskPerformedInput.value.trim();
-        const faultNoted    = faultNotedInput.value.trim();
-        const actionTaken   = actionTakenInput.value.trim();
-        const comments      = commentsInput.value.trim();
+        const code             = assetCodeInput.value.trim();
+        const incidentDate     = incidentDateInput.value.trim();
+
+        // Combine hour/minute into "HH:MM"
+        const hourVal          = hourSelect.value;   
+        const minuteVal        = minuteSelect.value; 
+        const combinedTime     = hourVal + ":" + minuteVal;
+
+        const responsible      = responsiblePersonInput.value.trim();
+        const priorityVal      = priorityInput.value.trim();
+        const taskPerformed    = taskPerformedInput.value.trim();
+        const faultNoted       = faultNotedInput.value.trim();
+        const actionTaken      = actionTakenInput.value.trim();
+        const comments         = commentsInput.value.trim();
 
         // Basic required checks
         if (!code || !taskPerformed || !faultNoted || !actionTaken) {
@@ -567,7 +558,7 @@
         const newEntry = {
           assetCode: code,
           incidentDate: incidentDate,
-          artisanTimes: combinedTime,
+          artisanTimes: combinedTime, 
           responsiblePerson: responsible,
           priority: priorityVal,
           taskPerformed: taskPerformed,
@@ -579,19 +570,18 @@
 
         addEntryToDB(newEntry)
           .then(() => {
-            // Immediately reload so the table shows the new entry
+            // Reload the page so the new entry definitely appears in the table
             location.reload();
           })
           .catch(err => console.error("Error adding entry:", err));
       });
 
       ////////////////////////////////////////////////////////////////////////////
-      // 8) Debounced search for suggestions and table filter
+      // 8) Debounced Search for the Filter Box
       ////////////////////////////////////////////////////////////////////////////
       const handleSearch = debounce(() => {
-        updateCodeSuggestions();
         renderEntries();
-      }, 1000);
+      }, 500);
       searchCodeInput.addEventListener('input', handleSearch);
 
       ////////////////////////////////////////////////////////////////////////////
@@ -608,38 +598,38 @@
         let currentY = margin;
         const availableWidth = pageWidth - 2 * margin;
 
-        // Column widths (adjust as needed)
-        const colAssetW    = 40;
-        const colDateW     = 50;
-        const colTimeW     = 50;
-        const colPersonW   = 50;
-        const colPriorityW = 50;
-        const colTaskW     = 80;
-        const colFaultW    = 80;
-        const colActionW   = 80;
-        const colCommentsW = availableWidth
-                             - (colAssetW + colDateW + colTimeW + colPersonW
-                                + colPriorityW + colTaskW + colFaultW + colActionW);
+        // Adjust these column widths as needed
+        const colAssetW     = 40;
+        const colDateW      = 50;
+        const colTimeW      = 50;
+        const colPersonW    = 50;
+        const colPriorityW  = 40;
+        const colTaskW      = 80;
+        const colFaultW     = 80;
+        const colActionW    = 80;
+        const colCommentsW  = availableWidth 
+                              - (colAssetW + colDateW + colTimeW + colPersonW 
+                                 + colPriorityW + colTaskW + colFaultW + colActionW);
 
-        const tableW = colAssetW + colDateW + colTimeW + colPersonW 
-                       + colPriorityW + colTaskW + colFaultW + colActionW 
+        const tableW = colAssetW + colDateW + colTimeW + colPersonW
+                       + colPriorityW + colTaskW + colFaultW + colActionW
                        + colCommentsW;
 
-        const rowHeight = 70; 
+        const rowHeight = 70;
         const headerHeight = 25;
 
         function drawTableHeader() {
           drawRowBorder(currentY, headerHeight);
           doc.setFontSize(10);
-          doc.text('Asset',       startX + 5, currentY + 15);
-          doc.text('Date',        startX + colAssetW + 5, currentY + 15);
-          doc.text('Clock-In',    startX + colAssetW + colDateW + 5, currentY + 15);
-          doc.text('Person',      startX + colAssetW + colDateW + colTimeW + 5, currentY + 15);
-          doc.text('Priority',    startX + colAssetW + colDateW + colTimeW + colPersonW + 5, currentY + 15);
-          doc.text('Task',        startX + colAssetW + colDateW + colTimeW + colPersonW + colPriorityW + 5, currentY + 15);
-          doc.text('Fault',       startX + colAssetW + colDateW + colTimeW + colPersonW + colPriorityW + colTaskW + 5, currentY + 15);
-          doc.text('Action',      startX + colAssetW + colDateW + colTimeW + colPersonW + colPriorityW + colTaskW + colFaultW + 5, currentY + 15);
-          doc.text('Comments',    startX + colAssetW + colDateW + colTimeW + colPersonW + colPriorityW + colTaskW + colFaultW + colActionW + 5, currentY + 15);
+          doc.text('Asset',    startX +  5, currentY + 15);
+          doc.text('Date',     startX + colAssetW + 5, currentY + 15);
+          doc.text('ClockIn',  startX + colAssetW + colDateW + 5, currentY + 15);
+          doc.text('Person',   startX + colAssetW + colDateW + colTimeW + 5, currentY + 15);
+          doc.text('Prio',     startX + colAssetW + colDateW + colTimeW + colPersonW + 5, currentY + 15);
+          doc.text('Task',     startX + colAssetW + colDateW + colTimeW + colPersonW + colPriorityW + 5, currentY + 15);
+          doc.text('Fault',    startX + colAssetW + colDateW + colTimeW + colPersonW + colPriorityW + colTaskW + 5, currentY + 15);
+          doc.text('Action',   startX + colAssetW + colDateW + colTimeW + colPersonW + colPriorityW + colTaskW + colFaultW + 5, currentY + 15);
+          doc.text('Comments', startX + colAssetW + colDateW + colTimeW + colPersonW + colPriorityW + colTaskW + colFaultW + colActionW + 5, currentY + 15);
           currentY += headerHeight;
         }
 
@@ -665,7 +655,7 @@
         drawTableHeader();
         doc.setFontSize(9);
 
-        // Only include entries that match the current filter
+        // Filter again for the PDF (same logic as table render)
         const filterText = searchCodeInput.value.trim().toLowerCase();
         const pdfEntries = entries.filter(entry =>
           filterText ? (entry.assetCode || '').toLowerCase().includes(filterText) : true
@@ -679,41 +669,48 @@
           }
           drawRowBorder(currentY, rowHeight);
 
-          const spacing = 12;
+          const spacing = 12; 
           let textX = startX + 5;
 
-          function splitAndPrint(text, maxW) {
-            return doc.splitTextToSize(text || '', maxW - 10);
+          function splitAndPrint(text, maxWidth) {
+            return doc.splitTextToSize(text || '', maxWidth - 10);
           }
 
-          // Prepare wrapped text for each column
-          const wrapAsset    = splitAndPrint(entry.assetCode,        colAssetW);
-          const wrapDate     = splitAndPrint(entry.incidentDate,     colDateW);
-          const wrapTime     = splitAndPrint(entry.artisanTimes,     colTimeW);
-          const wrapPerson   = splitAndPrint(entry.responsiblePerson,colPersonW);
-          const wrapPriority = splitAndPrint(entry.priority,         colPriorityW);
-          const wrapTask     = splitAndPrint(entry.taskPerformed,    colTaskW);
-          const wrapFault    = splitAndPrint(entry.faultNoted,       colFaultW);
-          const wrapAction   = splitAndPrint(entry.actionTaken,      colActionW);
-          const wrapComments = splitAndPrint(entry.comments,         colCommentsW);
+          const wrapAsset    = splitAndPrint(entry.assetCode,       colAssetW);
+          const wrapDate     = splitAndPrint(entry.incidentDate,    colDateW);
+          const wrapTime     = splitAndPrint(entry.artisanTimes,    colTimeW);
+          const wrapPerson   = splitAndPrint(entry.responsiblePerson, colPersonW);
+          const wrapPriority = splitAndPrint(entry.priority,        colPriorityW);
+          const wrapTask     = splitAndPrint(entry.taskPerformed,   colTaskW);
+          const wrapFault    = splitAndPrint(entry.faultNoted,      colFaultW);
+          const wrapAction   = splitAndPrint(entry.actionTaken,     colActionW);
+          const wrapComment  = splitAndPrint(entry.comments,        colCommentsW);
 
-          doc.text(wrapAsset, textX, currentY + spacing);
+          doc.text(wrapAsset, textX, currentY + spacing); 
           textX += colAssetW;
-          doc.text(wrapDate, textX + 5, currentY + spacing);
+
+          doc.text(wrapDate, textX + 5, currentY + spacing); 
           textX += colDateW;
+
           doc.text(wrapTime, textX + 5, currentY + spacing);
           textX += colTimeW;
+
           doc.text(wrapPerson, textX + 5, currentY + spacing);
           textX += colPersonW;
+
           doc.text(wrapPriority, textX + 5, currentY + spacing);
           textX += colPriorityW;
+
           doc.text(wrapTask, textX + 5, currentY + spacing);
           textX += colTaskW;
+
           doc.text(wrapFault, textX + 5, currentY + spacing);
           textX += colFaultW;
+
           doc.text(wrapAction, textX + 5, currentY + spacing);
           textX += colActionW;
-          doc.text(wrapComments, textX + 5, currentY + spacing);
+
+          doc.text(wrapComment, textX + 5, currentY + spacing);
 
           currentY += rowHeight;
         });
@@ -736,11 +733,18 @@
       });
 
       ////////////////////////////////////////////////////////////////////////////
-      // 11) On load: open DB and load any existing entries
+      // 11) On page load: open DB, load entries
       ////////////////////////////////////////////////////////////////////////////
       openDatabase()
         .then(() => refreshEntries())
         .catch(err => console.error("Failed to open database:", err));
+
+      ////////////////////////////////////////////////////////////////////////////
+      // 12) Search filter triggers table re-render
+      ////////////////////////////////////////////////////////////////////////////
+      searchCodeInput.addEventListener('input', debounce(() => {
+        renderEntries();
+      }, 500));
     });
   </script>
 </body>
