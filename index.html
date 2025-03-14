@@ -112,9 +112,18 @@
 <body>
   <h1>Root Cause Analysis</h1>
 
-  <!-- Optional filter by Asset Code -->
+  <!-- 
+    1) Filter by Asset Code with a datalist. 
+       We load suggestions from assetCodes.txt (optional).
+  -->
   <label for="searchCodeInput">Filter by Asset Code (optional):</label>
-  <input type="text" id="searchCodeInput" placeholder="e.g. 131-CON-01..." />
+  <input
+    type="text"
+    id="searchCodeInput"
+    placeholder="e.g. 131-CON-01..."
+    list="codeSuggestions"
+  />
+  <datalist id="codeSuggestions"></datalist>
 
   <!-- The Add Entry Form -->
   <form id="entryForm">
@@ -128,10 +137,10 @@
     <label for="timeWrapper">Artisan Clock-In Time:</label>
     <div id="timeWrapper" style="display: flex; gap: 10px;">
       <select id="hourSelect" style="width: 50%;">
-        <!-- Populate via JS below -->
+        <!-- Populated by JS -->
       </select>
       <select id="minuteSelect" style="width: 50%;">
-        <!-- Populate via JS below -->
+        <!-- Populated by JS -->
       </select>
     </div>
 
@@ -194,15 +203,33 @@
   <script>
     document.addEventListener("DOMContentLoaded", () => {
       ////////////////////////////////////////////////////////////////////////////
+      // 0) (Optional) Load asset codes & store them for datalist suggestions
+      ////////////////////////////////////////////////////////////////////////////
+      let allCodes = [];
+      fetch('assetCodes.txt')
+        .then(res => {
+          if (!res.ok) {
+            throw new Error('Could not load assetCodes.txt');
+          }
+          return res.text();
+        })
+        .then(data => {
+          allCodes = data
+            .split('\n')
+            .map(line => line.trim())
+            .filter(line => line !== '');
+        })
+        .catch(err => console.error("assetCodes.txt load error:", err));
+
+      ////////////////////////////////////////////////////////////////////////////
       // 1) IndexedDB Setup
       ////////////////////////////////////////////////////////////////////////////
       const DB_NAME = 'RootCauseDB';
-      const DB_VERSION = 1;  // We'll keep the same version for simplicity
+      const DB_VERSION = 1;
       const STORE_NAME = 'analysis';
       let db;
       let entries = []; // In-memory array of all entries
 
-      // Open or create the DB
       function openDatabase() {
         return new Promise((resolve, reject) => {
           const request = indexedDB.open(DB_NAME, DB_VERSION);
@@ -289,6 +316,7 @@
       // 2) DOM elements
       ////////////////////////////////////////////////////////////////////////////
       const searchCodeInput        = document.getElementById('searchCodeInput');
+      const codeSuggestions        = document.getElementById('codeSuggestions');
       const entryForm              = document.getElementById('entryForm');
       const assetCodeInput         = document.getElementById('assetCodeInput');
       const incidentDateInput      = document.getElementById('incidentDateInput');
@@ -335,17 +363,35 @@
       }
 
       ////////////////////////////////////////////////////////////////////////////
-      // 5) Table Rendering
+      // 5) Update <datalist> for code suggestions (limit to 50)
+      ////////////////////////////////////////////////////////////////////////////
+      function updateCodeSuggestions() {
+        codeSuggestions.innerHTML = '';
+        const typed = searchCodeInput.value.trim().toLowerCase();
+        let matched = typed
+          ? allCodes.filter(code => code.toLowerCase().includes(typed))
+          : allCodes;
+        const MAX_SUGGESTIONS = 50;
+        matched.slice(0, MAX_SUGGESTIONS).forEach(code => {
+          const opt = document.createElement('option');
+          opt.value = code;
+          codeSuggestions.appendChild(opt);
+        });
+      }
+
+      ////////////////////////////////////////////////////////////////////////////
+      // 6) Render the table with filtering
       ////////////////////////////////////////////////////////////////////////////
       function renderEntries() {
         entriesTableBody.innerHTML = '';
         const filterText = searchCodeInput.value.trim().toLowerCase();
-        let rowsToShow = filterText 
-          ? entries.filter(entry => (entry.assetCode || '').toLowerCase().includes(filterText))
+        let rowsToShow = filterText
+          ? entries.filter(entry =>
+              (entry.assetCode || '').toLowerCase().includes(filterText)
+            )
           : entries;
 
-        // Limit the display to avoid huge tables if needed
-        rowsToShow = rowsToShow.slice(0, 50);
+        rowsToShow = rowsToShow.slice(0, 50); // Limit to 50 rows
 
         rowsToShow.forEach(entry => {
           const row = document.createElement('tr');
@@ -434,7 +480,7 @@
           taskTd.appendChild(taskArea);
           row.appendChild(taskTd);
 
-          // Fault Noted (5 Why)
+          // Fault Noted
           const faultTd = document.createElement('td');
           faultTd.setAttribute('data-label', 'Fault Noted (5 Why)');
           const faultArea = document.createElement('textarea');
@@ -496,34 +542,32 @@
       }
 
       ////////////////////////////////////////////////////////////////////////////
-      // 6) Add new entry form handling
+      // 7) Add new entry form handling
       ////////////////////////////////////////////////////////////////////////////
       entryForm.addEventListener('submit', e => {
         e.preventDefault();
-        const code             = assetCodeInput.value.trim();
-        const incidentDate     = incidentDateInput.value.trim();
-        const hourVal          = hourSelect.value;    // "00" to "23"
-        const minuteVal        = minuteSelect.value;  // "00" to "59"
-        // Combine into "HH:MM" format
-        const combinedTime     = hourVal + ":" + minuteVal;
-        const responsible      = responsiblePersonInput.value.trim();
-        const priorityVal      = priorityInput.value.trim();
-        const taskPerformed    = taskPerformedInput.value.trim();
-        const faultNoted       = faultNotedInput.value.trim();
-        const actionTaken      = actionTakenInput.value.trim();
-        const comments         = commentsInput.value.trim();
+        const code          = assetCodeInput.value.trim();
+        const incidentDate  = incidentDateInput.value.trim();
+        const hourVal       = hourSelect.value;    // "00" to "23"
+        const minuteVal     = minuteSelect.value;  // "00" to "59"
+        const combinedTime  = hourVal + ":" + minuteVal; // store clock-in as "HH:MM"
+        const responsible   = responsiblePersonInput.value.trim();
+        const priorityVal   = priorityInput.value.trim();
+        const taskPerformed = taskPerformedInput.value.trim();
+        const faultNoted    = faultNotedInput.value.trim();
+        const actionTaken   = actionTakenInput.value.trim();
+        const comments      = commentsInput.value.trim();
 
-        // Check required fields
+        // Basic required checks
         if (!code || !taskPerformed || !faultNoted || !actionTaken) {
           alert('Please fill out all required fields (Asset Code, Task, Fault, Action).');
           return;
         }
 
-        // Save new entry in object
         const newEntry = {
           assetCode: code,
           incidentDate: incidentDate,
-          artisanTimes: combinedTime,     // store clock-in as "HH:MM"
+          artisanTimes: combinedTime,
           responsiblePerson: responsible,
           priority: priorityVal,
           taskPerformed: taskPerformed,
@@ -535,22 +579,23 @@
 
         addEntryToDB(newEntry)
           .then(() => {
-            // Immediately reload the page so the table refreshes
+            // Immediately reload so the table shows the new entry
             location.reload();
           })
           .catch(err => console.error("Error adding entry:", err));
       });
 
       ////////////////////////////////////////////////////////////////////////////
-      // 7) Debounced search
+      // 8) Debounced search for suggestions and table filter
       ////////////////////////////////////////////////////////////////////////////
       const handleSearch = debounce(() => {
+        updateCodeSuggestions();
         renderEntries();
-      }, 500);
+      }, 1000);
       searchCodeInput.addEventListener('input', handleSearch);
 
       ////////////////////////////////////////////////////////////////////////////
-      // 8) Generate PDF
+      // 9) Generate PDF
       ////////////////////////////////////////////////////////////////////////////
       generatePdfButton.addEventListener('click', () => {
         const { jsPDF } = window.jspdf;
@@ -564,29 +609,29 @@
         const availableWidth = pageWidth - 2 * margin;
 
         // Column widths (adjust as needed)
-        const colAssetW     = 40;
-        const colDateW      = 50;
-        const colTimeW      = 50;
-        const colPersonW    = 50;
-        const colPriorityW  = 40;
-        const colTaskW      = 80;
-        const colFaultW     = 80;
-        const colActionW    = 80;
-        const colCommentsW  = availableWidth 
-                              - (colAssetW + colDateW + colTimeW + colPersonW 
-                                 + colPriorityW + colTaskW + colFaultW + colActionW);
+        const colAssetW    = 40;
+        const colDateW     = 50;
+        const colTimeW     = 50;
+        const colPersonW   = 50;
+        const colPriorityW = 50;
+        const colTaskW     = 80;
+        const colFaultW    = 80;
+        const colActionW   = 80;
+        const colCommentsW = availableWidth
+                             - (colAssetW + colDateW + colTimeW + colPersonW
+                                + colPriorityW + colTaskW + colFaultW + colActionW);
 
-        const tableW = colAssetW + colDateW + colTimeW + colPersonW
-                       + colPriorityW + colTaskW + colFaultW + colActionW
+        const tableW = colAssetW + colDateW + colTimeW + colPersonW 
+                       + colPriorityW + colTaskW + colFaultW + colActionW 
                        + colCommentsW;
 
-        const rowHeight = 70;
+        const rowHeight = 70; 
         const headerHeight = 25;
 
         function drawTableHeader() {
           drawRowBorder(currentY, headerHeight);
           doc.setFontSize(10);
-          doc.text('Asset',       startX +  5, currentY + 15);
+          doc.text('Asset',       startX + 5, currentY + 15);
           doc.text('Date',        startX + colAssetW + 5, currentY + 15);
           doc.text('Clock-In',    startX + colAssetW + colDateW + 5, currentY + 15);
           doc.text('Person',      startX + colAssetW + colDateW + colTimeW + 5, currentY + 15);
@@ -618,13 +663,13 @@
         doc.text('Root Cause Analysis', startX, currentY);
         currentY += 20;
         drawTableHeader();
+        doc.setFontSize(9);
 
+        // Only include entries that match the current filter
         const filterText = searchCodeInput.value.trim().toLowerCase();
         const pdfEntries = entries.filter(entry =>
           filterText ? (entry.assetCode || '').toLowerCase().includes(filterText) : true
         );
-
-        doc.setFontSize(9);
 
         pdfEntries.forEach(entry => {
           if (currentY + rowHeight > pageHeight - margin) {
@@ -634,47 +679,40 @@
           }
           drawRowBorder(currentY, rowHeight);
 
-          const spacing = 12; 
+          const spacing = 12;
           let textX = startX + 5;
 
-          function splitAndPrint(text, maxWidth) {
-            return doc.splitTextToSize(text || '', maxWidth - 10);
+          function splitAndPrint(text, maxW) {
+            return doc.splitTextToSize(text || '', maxW - 10);
           }
 
-          const wrapAsset    = splitAndPrint(entry.assetCode,       colAssetW);
-          const wrapDate     = splitAndPrint(entry.incidentDate,    colDateW);
-          const wrapTime     = splitAndPrint(entry.artisanTimes,    colTimeW);
-          const wrapPerson   = splitAndPrint(entry.responsiblePerson, colPersonW);
-          const wrapPriority = splitAndPrint(entry.priority,        colPriorityW);
-          const wrapTask     = splitAndPrint(entry.taskPerformed,   colTaskW);
-          const wrapFault    = splitAndPrint(entry.faultNoted,      colFaultW);
-          const wrapAction   = splitAndPrint(entry.actionTaken,     colActionW);
-          const wrapComments = splitAndPrint(entry.comments,        colCommentsW);
+          // Prepare wrapped text for each column
+          const wrapAsset    = splitAndPrint(entry.assetCode,        colAssetW);
+          const wrapDate     = splitAndPrint(entry.incidentDate,     colDateW);
+          const wrapTime     = splitAndPrint(entry.artisanTimes,     colTimeW);
+          const wrapPerson   = splitAndPrint(entry.responsiblePerson,colPersonW);
+          const wrapPriority = splitAndPrint(entry.priority,         colPriorityW);
+          const wrapTask     = splitAndPrint(entry.taskPerformed,    colTaskW);
+          const wrapFault    = splitAndPrint(entry.faultNoted,       colFaultW);
+          const wrapAction   = splitAndPrint(entry.actionTaken,      colActionW);
+          const wrapComments = splitAndPrint(entry.comments,         colCommentsW);
 
-          doc.text(wrapAsset, textX, currentY + spacing); 
+          doc.text(wrapAsset, textX, currentY + spacing);
           textX += colAssetW;
-
-          doc.text(wrapDate, textX + 5, currentY + spacing); 
+          doc.text(wrapDate, textX + 5, currentY + spacing);
           textX += colDateW;
-
           doc.text(wrapTime, textX + 5, currentY + spacing);
           textX += colTimeW;
-
           doc.text(wrapPerson, textX + 5, currentY + spacing);
           textX += colPersonW;
-
           doc.text(wrapPriority, textX + 5, currentY + spacing);
           textX += colPriorityW;
-
           doc.text(wrapTask, textX + 5, currentY + spacing);
           textX += colTaskW;
-
           doc.text(wrapFault, textX + 5, currentY + spacing);
           textX += colFaultW;
-
           doc.text(wrapAction, textX + 5, currentY + spacing);
           textX += colActionW;
-
           doc.text(wrapComments, textX + 5, currentY + spacing);
 
           currentY += rowHeight;
@@ -684,7 +722,7 @@
       });
 
       ////////////////////////////////////////////////////////////////////////////
-      // 9) Clear All
+      // 10) Clear All
       ////////////////////////////////////////////////////////////////////////////
       clearAllButton.addEventListener('click', async () => {
         if (confirm("Are you sure you want to clear all entries? This action cannot be undone.")) {
@@ -698,7 +736,7 @@
       });
 
       ////////////////////////////////////////////////////////////////////////////
-      // 10) On load: open DB and load any existing entries
+      // 11) On load: open DB and load any existing entries
       ////////////////////////////////////////////////////////////////////////////
       openDatabase()
         .then(() => refreshEntries())
