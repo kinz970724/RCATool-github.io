@@ -112,10 +112,6 @@
 <body>
   <h1>Root Cause Analysis</h1>
 
-  <!-- ASSET CODE FILTER for displayed entries -->
-  <label for="searchCodeInput">Filter by Asset Code (optional):</label>
-  <input type="text" id="searchCodeInput" placeholder="e.g. 131-CON-01..." />
-
   <!-- The Add Entry Form -->
   <form id="entryForm">
     <!-- ASSET CODE with DataList (suggestions loaded from assetCodes.txt) -->
@@ -285,7 +281,6 @@
       ////////////////////////////////////////////////////////////////////////////
       // 2) DOM Elements
       ////////////////////////////////////////////////////////////////////////////
-      const searchCodeInput        = document.getElementById('searchCodeInput');
       const codeSuggestions        = document.getElementById('codeSuggestions');
       const entryForm              = document.getElementById('entryForm');
       const assetCodeInput         = document.getElementById('assetCodeInput');
@@ -307,7 +302,6 @@
       // 3) DataList for Asset Code Suggestions
       ////////////////////////////////////////////////////////////////////////////
       let allCodes = [];
-      // If you have an assetCodes.txt file, uncomment the fetch below:
       fetch('assetCodes.txt')
         .then(res => {
           if (!res.ok) throw new Error('Could not load assetCodes.txt');
@@ -320,17 +314,12 @@
         })
         .catch(err => console.error("Error fetching assetCodes.txt:", err));
 
-      // Update the <datalist> with up to 50 matching suggestions
       function updateCodeSuggestions() {
         codeSuggestions.innerHTML = '';
         const typed = assetCodeInput.value.trim().toLowerCase();
         const MAX_SUGGESTIONS = 50;
-        if (!typed) {
-          // If empty, optionally show all (or none):
-          // allCodes.slice(0, MAX_SUGGESTIONS).forEach(...)
-          return;
-        }
-        let matched = allCodes.filter(code => code.toLowerCase().includes(typed));
+        if (!typed) return; // if no input, do not fill suggestions
+        const matched = allCodes.filter(code => code.toLowerCase().includes(typed));
         matched.slice(0, MAX_SUGGESTIONS).forEach(code => {
           const opt = document.createElement('option');
           opt.value = code;
@@ -338,11 +327,11 @@
         });
       }
 
-      // Event: whenever user types in assetCodeInput, update suggestions (debounced)
+      // Update suggestions as user types in the asset code
       assetCodeInput.addEventListener('input', debounce(updateCodeSuggestions, 300));
 
       ////////////////////////////////////////////////////////////////////////////
-      // 4) Populate Time Selector (0–23 for hours, 0–59 for minutes)
+      // 4) Populate Time Selector (0–23 hours, 0–59 minutes)
       ////////////////////////////////////////////////////////////////////////////
       for (let h = 0; h < 24; h++) {
         const opt = document.createElement('option');
@@ -369,17 +358,13 @@
       }
 
       ////////////////////////////////////////////////////////////////////////////
-      // 6) Render the Table (Filter by Asset Code in searchCodeInput)
+      // 6) Render the Table (Show ALL entries, no filter)
       ////////////////////////////////////////////////////////////////////////////
       function renderEntries() {
         entriesTableBody.innerHTML = '';
-        const filterText = searchCodeInput.value.trim().toLowerCase();
-        let rowsToShow = filterText 
-          ? entries.filter(entry => (entry.assetCode || '').toLowerCase().includes(filterText))
-          : entries;
 
-        // Limit the display to avoid massive tables if needed
-        rowsToShow = rowsToShow.slice(0, 50);
+        // No filter; simply show all entries
+        const rowsToShow = entries.slice(0, 50); // limit to 50 if needed
 
         rowsToShow.forEach(entry => {
           const row = document.createElement('tr');
@@ -530,7 +515,7 @@
       }
 
       ////////////////////////////////////////////////////////////////////////////
-      // 7) Form Submission => Add Entry => Reload
+      // 7) Add new entry => Reload
       ////////////////////////////////////////////////////////////////////////////
       entryForm.addEventListener('submit', e => {
         e.preventDefault();
@@ -538,8 +523,8 @@
         const incidentDate     = incidentDateInput.value.trim();
 
         // Combine hour/minute into "HH:MM"
-        const hourVal          = hourSelect.value;   
-        const minuteVal        = minuteSelect.value; 
+        const hourVal          = hourSelect.value;
+        const minuteVal        = minuteSelect.value;
         const combinedTime     = hourVal + ":" + minuteVal;
 
         const responsible      = responsiblePersonInput.value.trim();
@@ -549,7 +534,6 @@
         const actionTaken      = actionTakenInput.value.trim();
         const comments         = commentsInput.value.trim();
 
-        // Basic required checks
         if (!code || !taskPerformed || !faultNoted || !actionTaken) {
           alert('Please fill out all required fields (Asset Code, Task, Fault, Action).');
           return;
@@ -558,7 +542,7 @@
         const newEntry = {
           assetCode: code,
           incidentDate: incidentDate,
-          artisanTimes: combinedTime, 
+          artisanTimes: combinedTime,
           responsiblePerson: responsible,
           priority: priorityVal,
           taskPerformed: taskPerformed,
@@ -577,15 +561,7 @@
       });
 
       ////////////////////////////////////////////////////////////////////////////
-      // 8) Debounced Search for the Filter Box
-      ////////////////////////////////////////////////////////////////////////////
-      const handleSearch = debounce(() => {
-        renderEntries();
-      }, 500);
-      searchCodeInput.addEventListener('input', handleSearch);
-
-      ////////////////////////////////////////////////////////////////////////////
-      // 9) Generate PDF
+      // 8) PDF Generation
       ////////////////////////////////////////////////////////////////////////////
       generatePdfButton.addEventListener('click', () => {
         const { jsPDF } = window.jspdf;
@@ -639,7 +615,7 @@
 
           let xPos = startX;
           const colWidths = [
-            colAssetW, colDateW, colTimeW, colPersonW, 
+            colAssetW, colDateW, colTimeW, colPersonW,
             colPriorityW, colTaskW, colFaultW, colActionW, colCommentsW
           ];
           for (let i = 0; i < colWidths.length; i++) {
@@ -655,13 +631,8 @@
         drawTableHeader();
         doc.setFontSize(9);
 
-        // Filter again for the PDF (same logic as table render)
-        const filterText = searchCodeInput.value.trim().toLowerCase();
-        const pdfEntries = entries.filter(entry =>
-          filterText ? (entry.assetCode || '').toLowerCase().includes(filterText) : true
-        );
-
-        pdfEntries.forEach(entry => {
+        // We'll simply render ALL entries in the PDF (no filtering)
+        entries.forEach(entry => {
           if (currentY + rowHeight > pageHeight - margin) {
             doc.addPage();
             currentY = margin;
@@ -719,7 +690,7 @@
       });
 
       ////////////////////////////////////////////////////////////////////////////
-      // 10) Clear All
+      // 9) Clear All
       ////////////////////////////////////////////////////////////////////////////
       clearAllButton.addEventListener('click', async () => {
         if (confirm("Are you sure you want to clear all entries? This action cannot be undone.")) {
@@ -733,18 +704,11 @@
       });
 
       ////////////////////////////////////////////////////////////////////////////
-      // 11) On page load: open DB, load entries
+      // 10) On load: open DB, load entries
       ////////////////////////////////////////////////////////////////////////////
       openDatabase()
         .then(() => refreshEntries())
         .catch(err => console.error("Failed to open database:", err));
-
-      ////////////////////////////////////////////////////////////////////////////
-      // 12) Search filter triggers table re-render
-      ////////////////////////////////////////////////////////////////////////////
-      searchCodeInput.addEventListener('input', debounce(() => {
-        renderEntries();
-      }, 500));
     });
   </script>
 </body>
