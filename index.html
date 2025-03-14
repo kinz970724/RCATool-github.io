@@ -112,10 +112,7 @@
 <body>
   <h1>Root Cause Analysis</h1>
 
-  <!--
-    You can remove this search input if you don't want to filter by Asset Code.
-    If you keep it, you can also adapt it to fetch external code lists or ignore it altogether.
-  -->
+  <!-- Filter by Asset Code (optional) -->
   <label for="searchCodeInput">Filter by Asset Code (optional):</label>
   <input type="text" id="searchCodeInput" placeholder="e.g. 131-CON-01..." />
 
@@ -124,8 +121,22 @@
     <label for="assetCodeInput">Asset Code:</label>
     <input type="text" id="assetCodeInput" placeholder="Enter asset code" required />
 
+    <label for="incidentDateInput">Incident Date:</label>
+    <input type="date" id="incidentDateInput" />
+
     <label for="artisanTimeInput">Artisan Times (Clock-In):</label>
     <input type="text" id="artisanTimeInput" placeholder="e.g. 08:00" required />
+
+    <label for="responsiblePersonInput">Responsible Person:</label>
+    <input type="text" id="responsiblePersonInput" placeholder="Name/ID of who performed task" />
+
+    <label for="priorityInput">Priority:</label>
+    <select id="priorityInput">
+      <option value="">-- Select Priority --</option>
+      <option value="Low">Low</option>
+      <option value="Medium">Medium</option>
+      <option value="High">High</option>
+    </select>
 
     <label for="taskPerformedInput">Task Performed:</label>
     <textarea id="taskPerformedInput" rows="2" placeholder="Describe the task performed" required></textarea>
@@ -135,6 +146,9 @@
 
     <label for="actionTakenInput">Action Taken:</label>
     <textarea id="actionTakenInput" rows="2" placeholder="Describe action taken" required></textarea>
+
+    <label for="commentsInput">Additional Comments (Optional):</label>
+    <textarea id="commentsInput" rows="2" placeholder="Add any other observations or notes"></textarea>
 
     <button type="submit">Add Entry</button>
   </form>
@@ -155,10 +169,14 @@
     <thead>
       <tr>
         <th>Asset Code</th>
+        <th>Incident Date</th>
         <th>Artisan Times</th>
+        <th>Responsible Person</th>
+        <th>Priority</th>
         <th>Task Performed</th>
         <th>Fault Noted (5 Why)</th>
         <th>Action Taken</th>
+        <th>Comments</th>
         <th>Actions</th>
       </tr>
     </thead>
@@ -171,7 +189,7 @@
       // IndexedDB Setup
       ////////////////////////////////////////////////////////////////////////////
       const DB_NAME = 'RootCauseDB';
-      const DB_VERSION = 1;
+      const DB_VERSION = 1;  // We'll keep the same version for simplicity
       const STORE_NAME = 'analysis';
       let db;
       let entries = []; // In-memory array of all entries
@@ -183,6 +201,7 @@
             console.error("Database error:", event.target.error);
             reject(event.target.error);
           };
+          // If we needed to do a major schema upgrade, we'd increment DB_VERSION
           request.onupgradeneeded = event => {
             db = event.target.result;
             if (!db.objectStoreNames.contains(STORE_NAME)) {
@@ -261,17 +280,21 @@
       ////////////////////////////////////////////////////////////////////////////
       // DOM elements
       ////////////////////////////////////////////////////////////////////////////
-      const searchCodeInput       = document.getElementById('searchCodeInput');
-      const entryForm             = document.getElementById('entryForm');
-      const assetCodeInput        = document.getElementById('assetCodeInput');
-      const artisanTimeInput      = document.getElementById('artisanTimeInput');
-      const taskPerformedInput    = document.getElementById('taskPerformedInput');
-      const faultNotedInput       = document.getElementById('faultNotedInput');
-      const actionTakenInput      = document.getElementById('actionTakenInput');
-      const entriesTableBody      = document.querySelector('#entriesTable tbody');
-      const generatePdfButton     = document.getElementById('generatePdf');
-      const clearAllButton        = document.getElementById('clearAll');
-      const pdfOrientationSelect  = document.getElementById('pdfOrientation');
+      const searchCodeInput        = document.getElementById('searchCodeInput');
+      const entryForm              = document.getElementById('entryForm');
+      const assetCodeInput         = document.getElementById('assetCodeInput');
+      const incidentDateInput      = document.getElementById('incidentDateInput');
+      const artisanTimeInput       = document.getElementById('artisanTimeInput');
+      const responsiblePersonInput = document.getElementById('responsiblePersonInput');
+      const priorityInput          = document.getElementById('priorityInput');
+      const taskPerformedInput     = document.getElementById('taskPerformedInput');
+      const faultNotedInput        = document.getElementById('faultNotedInput');
+      const actionTakenInput       = document.getElementById('actionTakenInput');
+      const commentsInput          = document.getElementById('commentsInput');
+      const entriesTableBody       = document.querySelector('#entriesTable tbody');
+      const generatePdfButton      = document.getElementById('generatePdf');
+      const clearAllButton         = document.getElementById('clearAll');
+      const pdfOrientationSelect   = document.getElementById('pdfOrientation');
 
       ////////////////////////////////////////////////////////////////////////////
       // Debounce Helper
@@ -291,10 +314,10 @@
         entriesTableBody.innerHTML = '';
         const filterText = searchCodeInput.value.trim().toLowerCase();
         let rowsToShow = filterText 
-          ? entries.filter(entry => entry.assetCode.toLowerCase().includes(filterText))
+          ? entries.filter(entry => (entry.assetCode || '').toLowerCase().includes(filterText))
           : entries;
 
-        // Limit the display to avoid massive tables (if needed)
+        // Limit the display to avoid massive tables if needed
         rowsToShow = rowsToShow.slice(0, 50);
 
         rowsToShow.forEach(entry => {
@@ -304,7 +327,7 @@
           const assetTd = document.createElement('td');
           assetTd.setAttribute('data-label', 'Asset Code');
           const assetArea = document.createElement('textarea');
-          assetArea.value = entry.assetCode;
+          assetArea.value = entry.assetCode || '';
           assetArea.rows = 1;
           assetArea.style.width = '100%';
           assetArea.oninput = () => {
@@ -314,11 +337,25 @@
           assetTd.appendChild(assetArea);
           row.appendChild(assetTd);
 
+          // Incident Date
+          const dateTd = document.createElement('td');
+          dateTd.setAttribute('data-label', 'Incident Date');
+          const dateArea = document.createElement('textarea');
+          dateArea.value = entry.incidentDate || '';
+          dateArea.rows = 1;
+          dateArea.style.width = '100%';
+          dateArea.oninput = () => {
+            entry.incidentDate = dateArea.value;
+            updateEntryInDB(entry).catch(err => console.error("Error updating entry:", err));
+          };
+          dateTd.appendChild(dateArea);
+          row.appendChild(dateTd);
+
           // Artisan Times
           const artisanTd = document.createElement('td');
           artisanTd.setAttribute('data-label', 'Artisan Times');
           const artisanArea = document.createElement('textarea');
-          artisanArea.value = entry.artisanTimes;
+          artisanArea.value = entry.artisanTimes || '';
           artisanArea.rows = 1;
           artisanArea.style.width = '100%';
           artisanArea.oninput = () => {
@@ -328,11 +365,39 @@
           artisanTd.appendChild(artisanArea);
           row.appendChild(artisanTd);
 
+          // Responsible Person
+          const personTd = document.createElement('td');
+          personTd.setAttribute('data-label', 'Responsible Person');
+          const personArea = document.createElement('textarea');
+          personArea.value = entry.responsiblePerson || '';
+          personArea.rows = 1;
+          personArea.style.width = '100%';
+          personArea.oninput = () => {
+            entry.responsiblePerson = personArea.value;
+            updateEntryInDB(entry).catch(err => console.error("Error updating entry:", err));
+          };
+          personTd.appendChild(personArea);
+          row.appendChild(personTd);
+
+          // Priority
+          const priorityTd = document.createElement('td');
+          priorityTd.setAttribute('data-label', 'Priority');
+          const priorityArea = document.createElement('textarea');
+          priorityArea.value = entry.priority || '';
+          priorityArea.rows = 1;
+          priorityArea.style.width = '100%';
+          priorityArea.oninput = () => {
+            entry.priority = priorityArea.value;
+            updateEntryInDB(entry).catch(err => console.error("Error updating entry:", err));
+          };
+          priorityTd.appendChild(priorityArea);
+          row.appendChild(priorityTd);
+
           // Task Performed
           const taskTd = document.createElement('td');
           taskTd.setAttribute('data-label', 'Task Performed');
           const taskArea = document.createElement('textarea');
-          taskArea.value = entry.taskPerformed;
+          taskArea.value = entry.taskPerformed || '';
           taskArea.rows = 2;
           taskArea.style.width = '100%';
           taskArea.oninput = () => {
@@ -346,7 +411,7 @@
           const faultTd = document.createElement('td');
           faultTd.setAttribute('data-label', 'Fault Noted (5 Why)');
           const faultArea = document.createElement('textarea');
-          faultArea.value = entry.faultNoted;
+          faultArea.value = entry.faultNoted || '';
           faultArea.rows = 3;
           faultArea.style.width = '100%';
           faultArea.oninput = () => {
@@ -360,7 +425,7 @@
           const actionTd = document.createElement('td');
           actionTd.setAttribute('data-label', 'Action Taken');
           const actionArea = document.createElement('textarea');
-          actionArea.value = entry.actionTaken;
+          actionArea.value = entry.actionTaken || '';
           actionArea.rows = 2;
           actionArea.style.width = '100%';
           actionArea.oninput = () => {
@@ -369,6 +434,20 @@
           };
           actionTd.appendChild(actionArea);
           row.appendChild(actionTd);
+
+          // Additional Comments
+          const commentsTd = document.createElement('td');
+          commentsTd.setAttribute('data-label', 'Comments');
+          const commentsArea = document.createElement('textarea');
+          commentsArea.value = entry.comments || '';
+          commentsArea.rows = 2;
+          commentsArea.style.width = '100%';
+          commentsArea.oninput = () => {
+            entry.comments = commentsArea.value;
+            updateEntryInDB(entry).catch(err => console.error("Error updating entry:", err));
+          };
+          commentsTd.appendChild(commentsArea);
+          row.appendChild(commentsTd);
 
           // Actions (Delete button)
           const actionsTd = document.createElement('td');
@@ -394,34 +473,47 @@
       ////////////////////////////////////////////////////////////////////////////
       entryForm.addEventListener('submit', e => {
         e.preventDefault();
-        const code = assetCodeInput.value.trim();
-        const artisanTimes = artisanTimeInput.value.trim();
-        const taskPerformed = taskPerformedInput.value.trim();
-        const faultNoted = faultNotedInput.value.trim();
-        const actionTaken = actionTakenInput.value.trim();
+        const code             = assetCodeInput.value.trim();
+        const incidentDate     = incidentDateInput.value.trim();
+        const artisanTimes     = artisanTimeInput.value.trim();
+        const responsiblePerson= responsiblePersonInput.value.trim();
+        const priorityVal      = priorityInput.value.trim();
+        const taskPerformed    = taskPerformedInput.value.trim();
+        const faultNoted       = faultNotedInput.value.trim();
+        const actionTaken      = actionTakenInput.value.trim();
+        const comments         = commentsInput.value.trim();
 
+        // Basic required checks
         if (!code || !artisanTimes || !taskPerformed || !faultNoted || !actionTaken) {
-          alert('Please fill out all required fields.');
+          alert('Please fill out all required fields (Asset Code, Artisan Times, Task, Fault, Action).');
           return;
         }
 
         const newEntry = {
           assetCode: code,
+          incidentDate: incidentDate,
           artisanTimes: artisanTimes,
+          responsiblePerson: responsiblePerson,
+          priority: priorityVal,
           taskPerformed: taskPerformed,
           faultNoted: faultNoted,
           actionTaken: actionTaken,
+          comments: comments,
           timestamp: Date.now()
         };
 
         addEntryToDB(newEntry)
           .then(() => {
             // Clear the form
-            assetCodeInput.value = '';
-            artisanTimeInput.value = '';
-            taskPerformedInput.value = '';
-            faultNotedInput.value = '';
-            actionTakenInput.value = '';
+            assetCodeInput.value         = '';
+            incidentDateInput.value      = '';
+            artisanTimeInput.value       = '';
+            responsiblePersonInput.value = '';
+            priorityInput.value          = '';
+            taskPerformedInput.value     = '';
+            faultNotedInput.value        = '';
+            actionTakenInput.value       = '';
+            commentsInput.value          = '';
             refreshEntries();
           })
           .catch(err => console.error("Error adding entry:", err));
@@ -450,43 +542,57 @@
         const availableWidth = pageWidth - 2 * margin;
 
         // Column widths (adjust as needed)
-        const colAssetW = 70;
-        const colArtisanW = 80;
-        const colTaskW = 120;
-        const colFaultW = 140;
-        const colActionW = availableWidth - (colAssetW + colArtisanW + colTaskW + colFaultW);
+        const colAssetW     = 40;
+        const colDateW      = 50;
+        const colArtisanW   = 50;
+        const colPersonW    = 50;
+        const colPriorityW  = 40;
+        const colTaskW      = 80;
+        const colFaultW     = 80;
+        const colActionW    = 80;
+        const colCommentsW  = availableWidth 
+                              - (colAssetW + colDateW + colArtisanW + colPersonW 
+                                 + colPriorityW + colTaskW + colFaultW + colActionW);
 
-        const tableW = colAssetW + colArtisanW + colTaskW + colFaultW + colActionW;
-        const rowHeight = 60;   // Height per row
+        const tableW = colAssetW + colDateW + colArtisanW + colPersonW
+                       + colPriorityW + colTaskW + colFaultW + colActionW
+                       + colCommentsW;
+
+        // Increase row height if you need more vertical space per entry
+        const rowHeight = 70; 
         const headerHeight = 25;
 
-        // Draw the header row
         function drawTableHeader() {
           drawRowBorder(currentY, headerHeight);
-          doc.setFontSize(12);
-          doc.text('Asset',       startX + 5, currentY + 15);
-          doc.text('Artisan',     startX + colAssetW + 5, currentY + 15);
-          doc.text('Task',        startX + colAssetW + colArtisanW + 5, currentY + 15);
-          doc.text('Fault (5 Why)', startX + colAssetW + colArtisanW + colTaskW + 5, currentY + 15);
-          doc.text('Action',      startX + colAssetW + colArtisanW + colTaskW + colFaultW + 5, currentY + 15);
+          doc.setFontSize(10);
+          doc.text('Asset',    startX +  5, currentY + 15);
+          doc.text('Date',     startX + colAssetW + 5, currentY + 15);
+          doc.text('Times',    startX + colAssetW + colDateW + 5, currentY + 15);
+          doc.text('Person',   startX + colAssetW + colDateW + colArtisanW + 5, currentY + 15);
+          doc.text('Priority', startX + colAssetW + colDateW + colArtisanW + colPersonW + 5, currentY + 15);
+          doc.text('Task',     startX + colAssetW + colDateW + colArtisanW + colPersonW + colPriorityW + 5, currentY + 15);
+          doc.text('Fault',    startX + colAssetW + colDateW + colArtisanW + colPersonW + colPriorityW + colTaskW + 5, currentY + 15);
+          doc.text('Action',   startX + colAssetW + colDateW + colArtisanW + colPersonW + colPriorityW + colTaskW + colFaultW + 5, currentY + 15);
+          doc.text('Comments', startX + colAssetW + colDateW + colArtisanW + colPersonW + colPriorityW + colTaskW + colFaultW + colActionW + 5, currentY + 15);
           currentY += headerHeight;
         }
 
         function drawRowBorder(y, height) {
+          // Horizontal top/bottom lines of row
           doc.line(startX, y, startX + tableW, y);
           doc.line(startX, y + height, startX + tableW, y + height);
 
-          // vertical lines
-          doc.line(startX, y, startX, y + height);
-          doc.line(startX + colAssetW, y, startX + colAssetW, y + height);
-          doc.line(startX + colAssetW + colArtisanW, y, startX + colAssetW + colArtisanW, y + height);
-          doc.line(startX + colAssetW + colArtisanW + colTaskW, y, startX + colAssetW + colArtisanW + colTaskW, y + height);
-          doc.line(startX + colAssetW + colArtisanW + colTaskW + colFaultW, y, startX + colAssetW + colArtisanW + colTaskW + colFaultW, y + height);
-
-          doc.line(startX + tableW, y, startX + tableW, y + height);
+          // Vertical lines for columns
+          let xPos = startX;
+          const colWidths = [colAssetW, colDateW, colArtisanW, colPersonW, colPriorityW, colTaskW, colFaultW, colActionW, colCommentsW];
+          for (let i = 0; i < colWidths.length; i++) {
+            doc.line(xPos, y, xPos, y + height);
+            xPos += colWidths[i];
+          }
+          // Right boundary
+          doc.line(xPos, y, xPos, y + height);
         }
 
-        // Title
         doc.setFontSize(14);
         doc.text('Root Cause Analysis', startX, currentY);
         currentY += 20;
@@ -494,8 +600,10 @@
 
         const filterText = searchCodeInput.value.trim().toLowerCase();
         const pdfEntries = entries.filter(entry =>
-          filterText ? entry.assetCode.toLowerCase().includes(filterText) : true
+          filterText ? (entry.assetCode || '').toLowerCase().includes(filterText) : true
         );
+
+        doc.setFontSize(9);
 
         pdfEntries.forEach(entry => {
           if (currentY + rowHeight > pageHeight - margin) {
@@ -504,27 +612,47 @@
             drawTableHeader();
           }
           drawRowBorder(currentY, rowHeight);
-          doc.setFontSize(10);
 
-          // Asset Code
-          const assetLines = doc.splitTextToSize(entry.assetCode, colAssetW - 10);
-          doc.text(assetLines, startX + 5, currentY + 15);
+          const spacing = 12; // vertical offset for text within the row
 
-          // Artisan Times
-          const artisanLines = doc.splitTextToSize(entry.artisanTimes, colArtisanW - 10);
-          doc.text(artisanLines, startX + colAssetW + 5, currentY + 15);
+          // We'll keep a small horizontal margin so text doesn't hit borders
+          let textX = startX + 5;
+          const wrapAsset   = doc.splitTextToSize(entry.assetCode       || '', colAssetW     - 10);
+          const wrapDate    = doc.splitTextToSize(entry.incidentDate    || '', colDateW      - 10);
+          const wrapArtisan = doc.splitTextToSize(entry.artisanTimes    || '', colArtisanW   - 10);
+          const wrapPerson  = doc.splitTextToSize(entry.responsiblePerson || '', colPersonW  - 10);
+          const wrapPrio    = doc.splitTextToSize(entry.priority        || '', colPriorityW  - 10);
+          const wrapTask    = doc.splitTextToSize(entry.taskPerformed   || '', colTaskW      - 10);
+          const wrapFault   = doc.splitTextToSize(entry.faultNoted      || '', colFaultW     - 10);
+          const wrapAction  = doc.splitTextToSize(entry.actionTaken     || '', colActionW    - 10);
+          const wrapComment = doc.splitTextToSize(entry.comments        || '', colCommentsW  - 10);
 
-          // Task Performed
-          const taskLines = doc.splitTextToSize(entry.taskPerformed, colTaskW - 10);
-          doc.text(taskLines, startX + colAssetW + colArtisanW + 5, currentY + 15);
+          doc.text(wrapAsset, textX, currentY + spacing);
+          textX += colAssetW;
 
-          // Fault Noted
-          const faultLines = doc.splitTextToSize(entry.faultNoted, colFaultW - 10);
-          doc.text(faultLines, startX + colAssetW + colArtisanW + colTaskW + 5, currentY + 15);
+          doc.text(wrapDate, textX + 5, currentY + spacing);
+          textX += colDateW;
 
-          // Action Taken
-          const actionLines = doc.splitTextToSize(entry.actionTaken, colActionW - 10);
-          doc.text(actionLines, startX + colAssetW + colArtisanW + colTaskW + colFaultW + 5, currentY + 15);
+          doc.text(wrapArtisan, textX + 5, currentY + spacing);
+          textX += colArtisanW;
+
+          doc.text(wrapPerson, textX + 5, currentY + spacing);
+          textX += colPersonW;
+
+          doc.text(wrapPrio, textX + 5, currentY + spacing);
+          textX += colPriorityW;
+
+          doc.text(wrapTask, textX + 5, currentY + spacing);
+          textX += colTaskW;
+
+          doc.text(wrapFault, textX + 5, currentY + spacing);
+          textX += colFaultW;
+
+          doc.text(wrapAction, textX + 5, currentY + spacing);
+          textX += colActionW;
+
+          doc.text(wrapComment, textX + 5, currentY + spacing);
+          // textX += colCommentsW; // not needed unless you want to keep track for next column
 
           currentY += rowHeight;
         });
