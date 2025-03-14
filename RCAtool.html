@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Root Cause Analysis</title>
+  <!-- Make pages scale nicely on phones -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- jsPDF from CDN for PDF generation -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <style>
+    /* Global styling with gradient background and emojis */
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      max-width: 1000px;
+      margin-left: auto;
+      margin-right: auto;
+      background: linear-gradient(to bottom right, #f0f0f0, #ffffff);
+    }
+    /* Add an emoji before the title */
+    h1:before {
+      content: "🔍 ";
+    }
+    h1, h2 {
+      text-align: center;
+      margin-top: 10px;
+      margin-bottom: 10px;
+    }
+    form, .buttons {
+      margin: 20px 0;
+      text-align: center;
+    }
+    label {
+      display: block;
+      margin: 5px 0 2px;
+      font-weight: bold;
+    }
+    select, input, button, textarea {
+      margin: 5px 0;
+      width: 100%;
+      box-sizing: border-box;
+      font-size: 1rem;
+      padding: 6px;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+    }
+    textarea {
+      resize: vertical;
+    }
+    button {
+      cursor: pointer;
+      border: none;
+      background-color: #0078d7;
+      color: white;
+      padding: 8px 12px;
+      font-size: 1rem;
+      border-radius: 4px;
+      margin: 5px;
+    }
+    button:hover {
+      background-color: #005fab;
+    }
+    /* Table styling */
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin-top: 20px;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    table thead tr {
+      background-color: #f7f7f7;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 10px;
+      vertical-align: top;
+    }
+    th {
+      background: #f9f9f9;
+    }
+    /* Hover effect for table rows */
+    tbody tr:hover {
+      background-color: #fafafa;
+    }
+    /* Responsive table for smaller screens */
+    @media (max-width: 600px) {
+      table, thead, tbody, th, td, tr {
+        display: block;
+        width: 100%;
+      }
+      thead {
+        display: none;
+      }
+      tr {
+        margin-bottom: 20px;
+        border: 1px solid #ccc;
+      }
+      td {
+        border: none;
+        padding: 5px 0;
+      }
+      td:before {
+        content: attr(data-label);
+        font-weight: bold;
+        display: block;
+      }
+    }
+  </style>
+</head>
+<body>
+  <h1>Root Cause Analysis</h1>
+
+  <!--
+    You can remove this search input if you don't want to filter by Asset Code.
+    If you keep it, you can also adapt it to fetch external code lists or ignore it altogether.
+  -->
+  <label for="searchCodeInput">Filter by Asset Code (optional):</label>
+  <input type="text" id="searchCodeInput" placeholder="e.g. 131-CON-01..." />
+
+  <!-- The Add Entry Form -->
+  <form id="entryForm">
+    <label for="assetCodeInput">Asset Code:</label>
+    <input type="text" id="assetCodeInput" placeholder="Enter asset code" required />
+
+    <label for="artisanTimeInput">Artisan Times (Clock-In):</label>
+    <input type="text" id="artisanTimeInput" placeholder="e.g. 08:00" required />
+
+    <label for="taskPerformedInput">Task Performed:</label>
+    <textarea id="taskPerformedInput" rows="2" placeholder="Describe the task performed" required></textarea>
+
+    <label for="faultNotedInput">Fault Noted (5 Why):</label>
+    <textarea id="faultNotedInput" rows="3" placeholder="Root cause 5 Why analysis..." required></textarea>
+
+    <label for="actionTakenInput">Action Taken:</label>
+    <textarea id="actionTakenInput" rows="2" placeholder="Describe action taken" required></textarea>
+
+    <button type="submit">Add Entry</button>
+  </form>
+
+  <div class="buttons">
+    <!-- PDF Orientation Selector -->
+    <label for="pdfOrientation">PDF Orientation:</label>
+    <select id="pdfOrientation">
+      <option value="l">Landscape</option>
+      <option value="p">Portrait</option>
+    </select>
+    <button id="generatePdf">Generate PDF</button>
+    <button id="clearAll">Clear All Entries</button>
+  </div>
+
+  <h2>Existing Entries</h2>
+  <table id="entriesTable">
+    <thead>
+      <tr>
+        <th>Asset Code</th>
+        <th>Artisan Times</th>
+        <th>Task Performed</th>
+        <th>Fault Noted (5 Why)</th>
+        <th>Action Taken</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      ////////////////////////////////////////////////////////////////////////////
+      // IndexedDB Setup
+      ////////////////////////////////////////////////////////////////////////////
+      const DB_NAME = 'RootCauseDB';
+      const DB_VERSION = 1;
+      const STORE_NAME = 'analysis';
+      let db;
+      let entries = []; // In-memory array of all entries
+
+      function openDatabase() {
+        return new Promise((resolve, reject) => {
+          const request = indexedDB.open(DB_NAME, DB_VERSION);
+          request.onerror = event => {
+            console.error("Database error:", event.target.error);
+            reject(event.target.error);
+          };
+          request.onupgradeneeded = event => {
+            db = event.target.result;
+            if (!db.objectStoreNames.contains(STORE_NAME)) {
+              db.createObjectStore(STORE_NAME, { keyPath: 'id', autoIncrement: true });
+            }
+          };
+          request.onsuccess = event => {
+            db = event.target.result;
+            resolve(db);
+          };
+        });
+      }
+
+      function getAllEntriesFromDB() {
+        return new Promise((resolve, reject) => {
+          const transaction = db.transaction([STORE_NAME], 'readonly');
+          const store = transaction.objectStore(STORE_NAME);
+          const request = store.getAll();
+          request.onsuccess = event => resolve(event.target.result);
+          request.onerror = event => reject(event.target.error);
+        });
+      }
+
+      function addEntryToDB(entry) {
+        return new Promise((resolve, reject) => {
+          const transaction = db.transaction([STORE_NAME], 'readwrite');
+          const store = transaction.objectStore(STORE_NAME);
+          const request = store.add(entry);
+          request.onsuccess = event => {
+            entry.id = event.target.result;
+            resolve(entry);
+          };
+          request.onerror = event => reject(event.target.error);
+        });
+      }
+
+      function updateEntryInDB(entry) {
+        return new Promise((resolve, reject) => {
+          const transaction = db.transaction([STORE_NAME], 'readwrite');
+          const store = transaction.objectStore(STORE_NAME);
+          const request = store.put(entry);
+          request.onsuccess = () => resolve();
+          request.onerror = event => reject(event.target.error);
+        });
+      }
+
+      function removeEntryFromDB(id) {
+        return new Promise((resolve, reject) => {
+          const transaction = db.transaction([STORE_NAME], 'readwrite');
+          const store = transaction.objectStore(STORE_NAME);
+          const request = store.delete(id);
+          request.onsuccess = () => resolve();
+          request.onerror = event => reject(event.target.error);
+        });
+      }
+
+      function clearAllEntriesFromDB() {
+        return new Promise((resolve, reject) => {
+          const transaction = db.transaction([STORE_NAME], 'readwrite');
+          const store = transaction.objectStore(STORE_NAME);
+          const request = store.clear();
+          request.onsuccess = () => resolve();
+          request.onerror = event => reject(event.target.error);
+        });
+      }
+
+      async function refreshEntries() {
+        try {
+          entries = await getAllEntriesFromDB();
+          renderEntries();
+        } catch (err) {
+          console.error("Error refreshing entries:", err);
+        }
+      }
+
+      ////////////////////////////////////////////////////////////////////////////
+      // DOM elements
+      ////////////////////////////////////////////////////////////////////////////
+      const searchCodeInput       = document.getElementById('searchCodeInput');
+      const entryForm             = document.getElementById('entryForm');
+      const assetCodeInput        = document.getElementById('assetCodeInput');
+      const artisanTimeInput      = document.getElementById('artisanTimeInput');
+      const taskPerformedInput    = document.getElementById('taskPerformedInput');
+      const faultNotedInput       = document.getElementById('faultNotedInput');
+      const actionTakenInput      = document.getElementById('actionTakenInput');
+      const entriesTableBody      = document.querySelector('#entriesTable tbody');
+      const generatePdfButton     = document.getElementById('generatePdf');
+      const clearAllButton        = document.getElementById('clearAll');
+      const pdfOrientationSelect  = document.getElementById('pdfOrientation');
+
+      ////////////////////////////////////////////////////////////////////////////
+      // Debounce Helper
+      ////////////////////////////////////////////////////////////////////////////
+      function debounce(fn, delay) {
+        let timeout;
+        return (...args) => {
+          clearTimeout(timeout);
+          timeout = setTimeout(() => fn(...args), delay);
+        };
+      }
+
+      ////////////////////////////////////////////////////////////////////////////
+      // Render the table (with optional filter by Asset Code)
+      ////////////////////////////////////////////////////////////////////////////
+      function renderEntries() {
+        entriesTableBody.innerHTML = '';
+        const filterText = searchCodeInput.value.trim().toLowerCase();
+        let rowsToShow = filterText 
+          ? entries.filter(entry => entry.assetCode.toLowerCase().includes(filterText))
+          : entries;
+
+        // Limit the display to avoid massive tables (if needed)
+        rowsToShow = rowsToShow.slice(0, 50);
+
+        rowsToShow.forEach(entry => {
+          const row = document.createElement('tr');
+
+          // Asset Code
+          const assetTd = document.createElement('td');
+          assetTd.setAttribute('data-label', 'Asset Code');
+          const assetArea = document.createElement('textarea');
+          assetArea.value = entry.assetCode;
+          assetArea.rows = 1;
+          assetArea.style.width = '100%';
+          assetArea.oninput = () => {
+            entry.assetCode = assetArea.value;
+            updateEntryInDB(entry).catch(err => console.error("Error updating entry:", err));
+          };
+          assetTd.appendChild(assetArea);
+          row.appendChild(assetTd);
+
+          // Artisan Times
+          const artisanTd = document.createElement('td');
+          artisanTd.setAttribute('data-label', 'Artisan Times');
+          const artisanArea = document.createElement('textarea');
+          artisanArea.value = entry.artisanTimes;
+          artisanArea.rows = 1;
+          artisanArea.style.width = '100%';
+          artisanArea.oninput = () => {
+            entry.artisanTimes = artisanArea.value;
+            updateEntryInDB(entry).catch(err => console.error("Error updating entry:", err));
+          };
+          artisanTd.appendChild(artisanArea);
+          row.appendChild(artisanTd);
+
+          // Task Performed
+          const taskTd = document.createElement('td');
+          taskTd.setAttribute('data-label', 'Task Performed');
+          const taskArea = document.createElement('textarea');
+          taskArea.value = entry.taskPerformed;
+          taskArea.rows = 2;
+          taskArea.style.width = '100%';
+          taskArea.oninput = () => {
+            entry.taskPerformed = taskArea.value;
+            updateEntryInDB(entry).catch(err => console.error("Error updating entry:", err));
+          };
+          taskTd.appendChild(taskArea);
+          row.appendChild(taskTd);
+
+          // Fault Noted (5 Why)
+          const faultTd = document.createElement('td');
+          faultTd.setAttribute('data-label', 'Fault Noted (5 Why)');
+          const faultArea = document.createElement('textarea');
+          faultArea.value = entry.faultNoted;
+          faultArea.rows = 3;
+          faultArea.style.width = '100%';
+          faultArea.oninput = () => {
+            entry.faultNoted = faultArea.value;
+            updateEntryInDB(entry).catch(err => console.error("Error updating entry:", err));
+          };
+          faultTd.appendChild(faultArea);
+          row.appendChild(faultTd);
+
+          // Action Taken
+          const actionTd = document.createElement('td');
+          actionTd.setAttribute('data-label', 'Action Taken');
+          const actionArea = document.createElement('textarea');
+          actionArea.value = entry.actionTaken;
+          actionArea.rows = 2;
+          actionArea.style.width = '100%';
+          actionArea.oninput = () => {
+            entry.actionTaken = actionArea.value;
+            updateEntryInDB(entry).catch(err => console.error("Error updating entry:", err));
+          };
+          actionTd.appendChild(actionArea);
+          row.appendChild(actionTd);
+
+          // Actions (Delete button)
+          const actionsTd = document.createElement('td');
+          actionsTd.setAttribute('data-label', 'Actions');
+          const deleteBtn = document.createElement('button');
+          deleteBtn.textContent = 'Delete';
+          deleteBtn.onclick = () => {
+            if (confirm("Are you sure you want to delete this entry?")) {
+              removeEntryFromDB(entry.id)
+                .then(() => refreshEntries())
+                .catch(err => console.error("Error deleting entry:", err));
+            }
+          };
+          actionsTd.appendChild(deleteBtn);
+          row.appendChild(actionsTd);
+
+          entriesTableBody.appendChild(row);
+        });
+      }
+
+      ////////////////////////////////////////////////////////////////////////////
+      // Add new entry form handling
+      ////////////////////////////////////////////////////////////////////////////
+      entryForm.addEventListener('submit', e => {
+        e.preventDefault();
+        const code = assetCodeInput.value.trim();
+        const artisanTimes = artisanTimeInput.value.trim();
+        const taskPerformed = taskPerformedInput.value.trim();
+        const faultNoted = faultNotedInput.value.trim();
+        const actionTaken = actionTakenInput.value.trim();
+
+        if (!code || !artisanTimes || !taskPerformed || !faultNoted || !actionTaken) {
+          alert('Please fill out all required fields.');
+          return;
+        }
+
+        const newEntry = {
+          assetCode: code,
+          artisanTimes: artisanTimes,
+          taskPerformed: taskPerformed,
+          faultNoted: faultNoted,
+          actionTaken: actionTaken,
+          timestamp: Date.now()
+        };
+
+        addEntryToDB(newEntry)
+          .then(() => {
+            // Clear the form
+            assetCodeInput.value = '';
+            artisanTimeInput.value = '';
+            taskPerformedInput.value = '';
+            faultNotedInput.value = '';
+            actionTakenInput.value = '';
+            refreshEntries();
+          })
+          .catch(err => console.error("Error adding entry:", err));
+      });
+
+      ////////////////////////////////////////////////////////////////////////////
+      // Debounced search
+      ////////////////////////////////////////////////////////////////////////////
+      const handleSearch = debounce(() => {
+        renderEntries();
+      }, 500);
+      searchCodeInput.addEventListener('input', handleSearch);
+
+      ////////////////////////////////////////////////////////////////////////////
+      // Generate PDF
+      ////////////////////////////////////////////////////////////////////////////
+      generatePdfButton.addEventListener('click', () => {
+        const { jsPDF } = window.jspdf;
+        const orientation = pdfOrientationSelect.value; // 'l' or 'p'
+        const doc = new jsPDF(orientation, 'pt', 'letter');
+        const pageWidth = doc.internal.pageSize.getWidth();
+        const pageHeight = doc.internal.pageSize.getHeight();
+        const margin = 40;
+        const startX = margin;
+        let currentY = margin;
+        const availableWidth = pageWidth - 2 * margin;
+
+        // Column widths (adjust as needed)
+        const colAssetW = 70;
+        const colArtisanW = 80;
+        const colTaskW = 120;
+        const colFaultW = 140;
+        const colActionW = availableWidth - (colAssetW + colArtisanW + colTaskW + colFaultW);
+
+        const tableW = colAssetW + colArtisanW + colTaskW + colFaultW + colActionW;
+        const rowHeight = 60;   // Height per row
+        const headerHeight = 25;
+
+        // Draw the header row
+        function drawTableHeader() {
+          drawRowBorder(currentY, headerHeight);
+          doc.setFontSize(12);
+          doc.text('Asset',       startX + 5, currentY + 15);
+          doc.text('Artisan',     startX + colAssetW + 5, currentY + 15);
+          doc.text('Task',        startX + colAssetW + colArtisanW + 5, currentY + 15);
+          doc.text('Fault (5 Why)', startX + colAssetW + colArtisanW + colTaskW + 5, currentY + 15);
+          doc.text('Action',      startX + colAssetW + colArtisanW + colTaskW + colFaultW + 5, currentY + 15);
+          currentY += headerHeight;
+        }
+
+        function drawRowBorder(y, height) {
+          doc.line(startX, y, startX + tableW, y);
+          doc.line(startX, y + height, startX + tableW, y + height);
+
+          // vertical lines
+          doc.line(startX, y, startX, y + height);
+          doc.line(startX + colAssetW, y, startX + colAssetW, y + height);
+          doc.line(startX + colAssetW + colArtisanW, y, startX + colAssetW + colArtisanW, y + height);
+          doc.line(startX + colAssetW + colArtisanW + colTaskW, y, startX + colAssetW + colArtisanW + colTaskW, y + height);
+          doc.line(startX + colAssetW + colArtisanW + colTaskW + colFaultW, y, startX + colAssetW + colArtisanW + colTaskW + colFaultW, y + height);
+
+          doc.line(startX + tableW, y, startX + tableW, y + height);
+        }
+
+        // Title
+        doc.setFontSize(14);
+        doc.text('Root Cause Analysis', startX, currentY);
+        currentY += 20;
+        drawTableHeader();
+
+        const filterText = searchCodeInput.value.trim().toLowerCase();
+        const pdfEntries = entries.filter(entry =>
+          filterText ? entry.assetCode.toLowerCase().includes(filterText) : true
+        );
+
+        pdfEntries.forEach(entry => {
+          if (currentY + rowHeight > pageHeight - margin) {
+            doc.addPage();
+            currentY = margin;
+            drawTableHeader();
+          }
+          drawRowBorder(currentY, rowHeight);
+          doc.setFontSize(10);
+
+          // Asset Code
+          const assetLines = doc.splitTextToSize(entry.assetCode, colAssetW - 10);
+          doc.text(assetLines, startX + 5, currentY + 15);
+
+          // Artisan Times
+          const artisanLines = doc.splitTextToSize(entry.artisanTimes, colArtisanW - 10);
+          doc.text(artisanLines, startX + colAssetW + 5, currentY + 15);
+
+          // Task Performed
+          const taskLines = doc.splitTextToSize(entry.taskPerformed, colTaskW - 10);
+          doc.text(taskLines, startX + colAssetW + colArtisanW + 5, currentY + 15);
+
+          // Fault Noted
+          const faultLines = doc.splitTextToSize(entry.faultNoted, colFaultW - 10);
+          doc.text(faultLines, startX + colAssetW + colArtisanW + colTaskW + 5, currentY + 15);
+
+          // Action Taken
+          const actionLines = doc.splitTextToSize(entry.actionTaken, colActionW - 10);
+          doc.text(actionLines, startX + colAssetW + colArtisanW + colTaskW + colFaultW + 5, currentY + 15);
+
+          currentY += rowHeight;
+        });
+
+        doc.save('root_cause_analysis.pdf');
+      });
+
+      ////////////////////////////////////////////////////////////////////////////
+      // Clear All
+      ////////////////////////////////////////////////////////////////////////////
+      clearAllButton.addEventListener('click', async () => {
+        if (confirm("Are you sure you want to clear all entries? This action cannot be undone.")) {
+          try {
+            await clearAllEntriesFromDB();
+            refreshEntries();
+          } catch (err) {
+            console.error("Error clearing entries:", err);
+          }
+        }
+      });
+
+      ////////////////////////////////////////////////////////////////////////////
+      // On load: open DB and load any existing entries
+      ////////////////////////////////////////////////////////////////////////////
+      openDatabase()
+        .then(() => refreshEntries())
+        .catch(err => console.error("Failed to open database:", err));
+    });
+  </script>
+</body>
+</html>
