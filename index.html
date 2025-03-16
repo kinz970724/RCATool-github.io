@@ -17,24 +17,29 @@
       margin-right: auto;
       background: linear-gradient(to bottom right, #f0f0f0, #ffffff);
     }
+
     /* Add an emoji before the title */
     h1:before {
       content: "🔍 ";
     }
+
     h1, h2 {
       text-align: center;
       margin-top: 10px;
       margin-bottom: 10px;
     }
+
     form, .buttons {
       margin: 20px 0;
       text-align: center;
     }
+
     label {
       display: block;
       margin: 5px 0 2px;
       font-weight: bold;
     }
+
     select, input, button, textarea {
       margin: 5px 0;
       width: 100%;
@@ -44,9 +49,11 @@
       border-radius: 4px;
       border: 1px solid #ccc;
     }
+
     textarea {
       resize: vertical;
     }
+
     button {
       cursor: pointer;
       border: none;
@@ -57,10 +64,12 @@
       border-radius: 4px;
       margin: 5px;
     }
+
     button:hover {
       background-color: #005fab;
     }
-    /* Table styling */
+
+    /* Table styling with auto-wrapping columns */
     table {
       border-collapse: collapse;
       width: 100%;
@@ -68,22 +77,30 @@
       box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
       border-radius: 4px;
       overflow: hidden;
+      table-layout: fixed; /* Ensures columns have fixed width and wrap text */
     }
+
     table thead tr {
       background-color: #f7f7f7;
     }
+
     th, td {
       border: 1px solid #ddd;
       padding: 10px;
       vertical-align: top;
+      word-wrap: break-word;      /* Wrap text within cells */
+      white-space: normal;        /* Let text flow to next line */
     }
+
     th {
       background: #f9f9f9;
     }
+
     /* Hover effect for table rows */
     tbody tr:hover {
       background-color: #fafafa;
     }
+
     /* Responsive table for smaller screens */
     @media (max-width: 600px) {
       table, thead, tbody, th, td, tr {
@@ -319,6 +336,7 @@
         const typed = assetCodeInput.value.trim().toLowerCase();
         const MAX_SUGGESTIONS = 50;
         if (!typed) return; // if no input, do not fill suggestions
+
         const matched = allCodes.filter(code => code.toLowerCase().includes(typed));
         matched.slice(0, MAX_SUGGESTIONS).forEach(code => {
           const opt = document.createElement('option');
@@ -327,7 +345,7 @@
         });
       }
 
-      // Update suggestions as user types in the asset code
+      // Update suggestions as the user types in the asset code
       assetCodeInput.addEventListener('input', debounce(updateCodeSuggestions, 300));
 
       ////////////////////////////////////////////////////////////////////////////
@@ -358,13 +376,13 @@
       }
 
       ////////////////////////////////////////////////////////////////////////////
-      // 6) Render the Table (Show ALL entries, no filter)
+      // 6) Render the Table (All entries, no filter)
       ////////////////////////////////////////////////////////////////////////////
       function renderEntries() {
         entriesTableBody.innerHTML = '';
 
-        // No filter; simply show all entries
-        const rowsToShow = entries.slice(0, 50); // limit to 50 if needed
+        // Just show all entries, limit to 50 if needed
+        const rowsToShow = entries.slice(0, 50);
 
         rowsToShow.forEach(entry => {
           const row = document.createElement('tr');
@@ -374,8 +392,8 @@
           assetTd.setAttribute('data-label', 'Asset Code');
           const assetArea = document.createElement('textarea');
           assetArea.value = entry.assetCode || '';
-          assetArea.rows = 1;
           assetArea.style.width = '100%';
+          assetArea.rows = 1;
           assetArea.oninput = () => {
             entry.assetCode = assetArea.value;
             updateEntryInDB(entry).catch(err => console.error("Error updating entry:", err));
@@ -388,8 +406,8 @@
           dateTd.setAttribute('data-label', 'Incident Date');
           const dateArea = document.createElement('textarea');
           dateArea.value = entry.incidentDate || '';
-          dateArea.rows = 1;
           dateArea.style.width = '100%';
+          dateArea.rows = 1;
           dateArea.oninput = () => {
             entry.incidentDate = dateArea.value;
             updateEntryInDB(entry).catch(err => console.error("Error updating entry:", err));
@@ -402,8 +420,8 @@
           timeTd.setAttribute('data-label', 'Clock-In Time');
           const timeArea = document.createElement('textarea');
           timeArea.value = entry.artisanTimes || '';
-          timeArea.rows = 1;
           timeArea.style.width = '100%';
+          timeArea.rows = 1;
           timeArea.oninput = () => {
             entry.artisanTimes = timeArea.value;
             updateEntryInDB(entry).catch(err => console.error("Error updating entry:", err));
@@ -416,8 +434,8 @@
           personTd.setAttribute('data-label', 'Responsible Person');
           const personArea = document.createElement('textarea');
           personArea.value = entry.responsiblePerson || '';
-          personArea.rows = 1;
           personArea.style.width = '100%';
+          personArea.rows = 1;
           personArea.oninput = () => {
             entry.responsiblePerson = personArea.value;
             updateEntryInDB(entry).catch(err => console.error("Error updating entry:", err));
@@ -430,8 +448,8 @@
           priorityTd.setAttribute('data-label', 'Priority');
           const priorityArea = document.createElement('textarea');
           priorityArea.value = entry.priority || '';
-          priorityArea.rows = 1;
           priorityArea.style.width = '100%';
+          priorityArea.rows = 1;
           priorityArea.oninput = () => {
             entry.priority = priorityArea.value;
             updateEntryInDB(entry).catch(err => console.error("Error updating entry:", err));
@@ -444,8 +462,8 @@
           taskTd.setAttribute('data-label', 'Task Performed');
           const taskArea = document.createElement('textarea');
           taskArea.value = entry.taskPerformed || '';
-          taskArea.rows = 2;
           taskArea.style.width = '100%';
+          taskArea.rows = 2;
           taskArea.oninput = () => {
             entry.taskPerformed = taskArea.value;
             updateEntryInDB(entry).catch(err => console.error("Error updating entry:", err));
@@ -458,8 +476,8 @@
           faultTd.setAttribute('data-label', 'Fault Noted (5 Why)');
           const faultArea = document.createElement('textarea');
           faultArea.value = entry.faultNoted || '';
-          faultArea.rows = 3;
           faultArea.style.width = '100%';
+          faultArea.rows = 3;
           faultArea.oninput = () => {
             entry.faultNoted = faultArea.value;
             updateEntryInDB(entry).catch(err => console.error("Error updating entry:", err));
@@ -472,8 +490,8 @@
           actionTd.setAttribute('data-label', 'Action Taken');
           const actionArea = document.createElement('textarea');
           actionArea.value = entry.actionTaken || '';
-          actionArea.rows = 2;
           actionArea.style.width = '100%';
+          actionArea.rows = 2;
           actionArea.oninput = () => {
             entry.actionTaken = actionArea.value;
             updateEntryInDB(entry).catch(err => console.error("Error updating entry:", err));
@@ -486,8 +504,8 @@
           commentsTd.setAttribute('data-label', 'Comments');
           const commentsArea = document.createElement('textarea');
           commentsArea.value = entry.comments || '';
-          commentsArea.rows = 2;
           commentsArea.style.width = '100%';
+          commentsArea.rows = 2;
           commentsArea.oninput = () => {
             entry.comments = commentsArea.value;
             updateEntryInDB(entry).catch(err => console.error("Error updating entry:", err));
@@ -561,130 +579,134 @@
       });
 
       ////////////////////////////////////////////////////////////////////////////
-      // 8) PDF Generation
+      // 8) PDF Generation with auto row height
       ////////////////////////////////////////////////////////////////////////////
       generatePdfButton.addEventListener('click', () => {
         const { jsPDF } = window.jspdf;
         const orientation = pdfOrientationSelect.value; // 'l' or 'p'
         const doc = new jsPDF(orientation, 'pt', 'letter');
+
         const pageWidth = doc.internal.pageSize.getWidth();
         const pageHeight = doc.internal.pageSize.getHeight();
-        const margin = 40;
+        const margin = 40;                  // left/right margin
         const startX = margin;
         let currentY = margin;
-        const availableWidth = pageWidth - 2 * margin;
 
-        // Adjust these column widths as needed
-        const colAssetW     = 40;
+        // We'll use smaller columns so nothing gets cut off
+        // Tweak these widths as you like (they must fit in pageWidth - 2*margin)
+        const colAssetW     = 60;
         const colDateW      = 50;
         const colTimeW      = 50;
-        const colPersonW    = 50;
-        const colPriorityW  = 40;
+        const colPersonW    = 60;
+        const colPriorityW  = 50;
         const colTaskW      = 80;
         const colFaultW     = 80;
         const colActionW    = 80;
-        const colCommentsW  = availableWidth 
-                              - (colAssetW + colDateW + colTimeW + colPersonW 
-                                 + colPriorityW + colTaskW + colFaultW + colActionW);
+        const colCommentsW  = 100; // wider column for comments
 
         const tableW = colAssetW + colDateW + colTimeW + colPersonW
-                       + colPriorityW + colTaskW + colFaultW + colActionW
-                       + colCommentsW;
+                     + colPriorityW + colTaskW + colFaultW + colActionW
+                     + colCommentsW;
 
-        const rowHeight = 70;
         const headerHeight = 25;
+        const lineHeight   = 12; // line height for text
+        const topBottomPad = 6;  // extra padding for each row
 
-        function drawTableHeader() {
-          drawRowBorder(currentY, headerHeight);
+        doc.setFontSize(12);
+        doc.text('Root Cause Analysis', startX, currentY);
+        currentY += 20;
+
+        // Draw table header
+        function drawTableHeader(yPos) {
+          drawRowBorder(yPos, headerHeight);
           doc.setFontSize(10);
-          doc.text('Asset',    startX +  5, currentY + 15);
-          doc.text('Date',     startX + colAssetW + 5, currentY + 15);
-          doc.text('ClockIn',  startX + colAssetW + colDateW + 5, currentY + 15);
-          doc.text('Person',   startX + colAssetW + colDateW + colTimeW + 5, currentY + 15);
-          doc.text('Prio',     startX + colAssetW + colDateW + colTimeW + colPersonW + 5, currentY + 15);
-          doc.text('Task',     startX + colAssetW + colDateW + colTimeW + colPersonW + colPriorityW + 5, currentY + 15);
-          doc.text('Fault',    startX + colAssetW + colDateW + colTimeW + colPersonW + colPriorityW + colTaskW + 5, currentY + 15);
-          doc.text('Action',   startX + colAssetW + colDateW + colTimeW + colPersonW + colPriorityW + colTaskW + colFaultW + 5, currentY + 15);
-          doc.text('Comments', startX + colAssetW + colDateW + colTimeW + colPersonW + colPriorityW + colTaskW + colFaultW + colActionW + 5, currentY + 15);
-          currentY += headerHeight;
+          let xPos = startX + 5;
+          doc.text('Asset',    xPos, yPos + 15); xPos += colAssetW;
+          doc.text('Date',     xPos, yPos + 15); xPos += colDateW;
+          doc.text('ClockIn',  xPos, yPos + 15); xPos += colTimeW;
+          doc.text('Person',   xPos, yPos + 15); xPos += colPersonW;
+          doc.text('Prio',     xPos, yPos + 15); xPos += colPriorityW;
+          doc.text('Task',     xPos, yPos + 15); xPos += colTaskW;
+          doc.text('Fault',    xPos, yPos + 15); xPos += colFaultW;
+          doc.text('Action',   xPos, yPos + 15); xPos += colActionW;
+          doc.text('Comments', xPos, yPos + 15);
         }
 
         function drawRowBorder(y, height) {
+          // horizontal top + bottom
           doc.line(startX, y, startX + tableW, y);
           doc.line(startX, y + height, startX + tableW, y + height);
 
+          // vertical col lines
           let xPos = startX;
           const colWidths = [
             colAssetW, colDateW, colTimeW, colPersonW,
             colPriorityW, colTaskW, colFaultW, colActionW, colCommentsW
           ];
-          for (let i = 0; i < colWidths.length; i++) {
+          for (let w of colWidths) {
             doc.line(xPos, y, xPos, y + height);
-            xPos += colWidths[i];
+            xPos += w;
           }
           doc.line(xPos, y, xPos, y + height);
         }
 
-        doc.setFontSize(14);
-        doc.text('Root Cause Analysis', startX, currentY);
-        currentY += 20;
-        drawTableHeader();
+        // Draw the table header row
+        drawTableHeader(currentY);
+        currentY += headerHeight;
+
+        // For each entry, split text, find max lines, compute row height, etc.
         doc.setFontSize(9);
 
-        // We'll simply render ALL entries in the PDF (no filtering)
-        entries.forEach(entry => {
+        // All entries, no filter
+        for (let entry of entries) {
+          // We'll get splitted lines for each column
+          let wrapAsset    = doc.splitTextToSize(entry.assetCode || '',       colAssetW     - 10);
+          let wrapDate     = doc.splitTextToSize(entry.incidentDate || '',    colDateW      - 10);
+          let wrapTime     = doc.splitTextToSize(entry.artisanTimes || '',    colTimeW      - 10);
+          let wrapPerson   = doc.splitTextToSize(entry.responsiblePerson || '', colPersonW  - 10);
+          let wrapPriority = doc.splitTextToSize(entry.priority || '',        colPriorityW  - 10);
+          let wrapTask     = doc.splitTextToSize(entry.taskPerformed || '',   colTaskW      - 10);
+          let wrapFault    = doc.splitTextToSize(entry.faultNoted || '',      colFaultW     - 10);
+          let wrapAction   = doc.splitTextToSize(entry.actionTaken || '',     colActionW    - 10);
+          let wrapComment  = doc.splitTextToSize(entry.comments || '',        colCommentsW  - 10);
+
+          // Number of lines in each column
+          let linesCount = [
+            wrapAsset.length, wrapDate.length, wrapTime.length, wrapPerson.length,
+            wrapPriority.length, wrapTask.length, wrapFault.length, wrapAction.length, wrapComment.length
+          ];
+          // The row height = (max lines * lineHeight) + topBottomPad
+          let maxLines = Math.max(...linesCount);
+          let rowHeight = (maxLines * lineHeight) + topBottomPad;
+
+          // Check if new row fits on page; if not, add page, draw header again
           if (currentY + rowHeight > pageHeight - margin) {
             doc.addPage();
             currentY = margin;
-            drawTableHeader();
+            drawTableHeader(currentY);
+            currentY += headerHeight;
           }
+
+          // Draw the row border
           drawRowBorder(currentY, rowHeight);
 
-          const spacing = 12; 
+          // Print text in columns
           let textX = startX + 5;
+          let textY = currentY + lineHeight; // first line baseline
 
-          function splitAndPrint(text, maxWidth) {
-            return doc.splitTextToSize(text || '', maxWidth - 10);
-          }
+          doc.text(wrapAsset,    textX,              textY); textX += colAssetW;
+          doc.text(wrapDate,     textX,              textY); textX += colDateW;
+          doc.text(wrapTime,     textX,              textY); textX += colTimeW;
+          doc.text(wrapPerson,   textX,              textY); textX += colPersonW;
+          doc.text(wrapPriority, textX,              textY); textX += colPriorityW;
+          doc.text(wrapTask,     textX,              textY); textX += colTaskW;
+          doc.text(wrapFault,    textX,              textY); textX += colFaultW;
+          doc.text(wrapAction,   textX,              textY); textX += colActionW;
+          doc.text(wrapComment,  textX,              textY);
 
-          const wrapAsset    = splitAndPrint(entry.assetCode,       colAssetW);
-          const wrapDate     = splitAndPrint(entry.incidentDate,    colDateW);
-          const wrapTime     = splitAndPrint(entry.artisanTimes,    colTimeW);
-          const wrapPerson   = splitAndPrint(entry.responsiblePerson, colPersonW);
-          const wrapPriority = splitAndPrint(entry.priority,        colPriorityW);
-          const wrapTask     = splitAndPrint(entry.taskPerformed,   colTaskW);
-          const wrapFault    = splitAndPrint(entry.faultNoted,      colFaultW);
-          const wrapAction   = splitAndPrint(entry.actionTaken,     colActionW);
-          const wrapComment  = splitAndPrint(entry.comments,        colCommentsW);
-
-          doc.text(wrapAsset, textX, currentY + spacing); 
-          textX += colAssetW;
-
-          doc.text(wrapDate, textX + 5, currentY + spacing); 
-          textX += colDateW;
-
-          doc.text(wrapTime, textX + 5, currentY + spacing);
-          textX += colTimeW;
-
-          doc.text(wrapPerson, textX + 5, currentY + spacing);
-          textX += colPersonW;
-
-          doc.text(wrapPriority, textX + 5, currentY + spacing);
-          textX += colPriorityW;
-
-          doc.text(wrapTask, textX + 5, currentY + spacing);
-          textX += colTaskW;
-
-          doc.text(wrapFault, textX + 5, currentY + spacing);
-          textX += colFaultW;
-
-          doc.text(wrapAction, textX + 5, currentY + spacing);
-          textX += colActionW;
-
-          doc.text(wrapComment, textX + 5, currentY + spacing);
-
+          // Move to next row
           currentY += rowHeight;
-        });
+        }
 
         doc.save('root_cause_analysis.pdf');
       });
