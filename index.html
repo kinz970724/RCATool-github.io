@@ -77,7 +77,7 @@
       box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
       border-radius: 4px;
       overflow: hidden;
-      table-layout: fixed; /* Ensures columns have fixed width and wrap text */
+      table-layout: fixed; /* Ensures columns have fixed widths */
     }
 
     table thead tr {
@@ -88,8 +88,8 @@
       border: 1px solid #ddd;
       padding: 10px;
       vertical-align: top;
-      word-wrap: break-word;      /* Wrap text within cells */
-      white-space: normal;        /* Let text flow to next line */
+      word-wrap: break-word;      /* wrap text within cells */
+      white-space: normal;        /* allow multi-line text */
     }
 
     th {
@@ -132,22 +132,24 @@
   <!-- The Add Entry Form -->
   <form id="entryForm">
     <!-- ASSET CODE with DataList (suggestions loaded from assetCodes.txt) -->
-    <label for="assetCodeInput">Asset Code (Search or type custom):</label>
+    <label for="assetCodeInput">Asset Code:</label>
     <input type="text" id="assetCodeInput" placeholder="e.g. 131-CON-01..." list="codeSuggestions" required />
     <datalist id="codeSuggestions"></datalist>
 
     <label for="incidentDateInput">Incident Date:</label>
     <input type="date" id="incidentDateInput" />
 
-    <!-- TIME SELECTOR -->
-    <label for="timeWrapper">Artisan Clock-In Time:</label>
-    <div id="timeWrapper" style="display: flex; gap: 10px;">
-      <select id="hourSelect" style="width: 50%;"></select>
-      <select id="minuteSelect" style="width: 50%;"></select>
-    </div>
+    <!-- TIME OF BREAKDOWN -->
+    <label for="breakdownTimeInput">Time of Breakdown:</label>
+    <input type="time" id="breakdownTimeInput" />
 
-    <label for="responsiblePersonInput">Responsible Person:</label>
-    <input type="text" id="responsiblePersonInput" placeholder="Name/ID of who performed task" />
+    <!-- TIME OF STARTUP -->
+    <label for="startupTimeInput">Time of Startup:</label>
+    <input type="time" id="startupTimeInput" />
+
+    <!-- ARTISANS ON JOB -->
+    <label for="artisansInput">Artisans on Job:</label>
+    <input type="text" id="artisansInput" placeholder="Names/IDs of who performed task" />
 
     <label for="priorityInput">Priority:</label>
     <select id="priorityInput">
@@ -157,14 +159,16 @@
       <option value="High">High</option>
     </select>
 
+    <!-- WHAT WAS DONE -->
     <label for="taskPerformedInput">Task Performed:</label>
-    <textarea id="taskPerformedInput" rows="2" placeholder="Describe the task performed" required></textarea>
+    <textarea id="taskPerformedInput" rows="2" placeholder="Describe the task or rectification performed" required></textarea>
 
-    <label for="faultNotedInput">Fault Noted (5 Why):</label>
-    <textarea id="faultNotedInput" rows="3" placeholder="Root cause 5 Why analysis..." required></textarea>
+    <!-- WHAT THEY FOUND -->
+    <label for="findingsInput">Findings (5 Why):</label>
+    <textarea id="findingsInput" rows="3" placeholder="Root cause analysis or observed faults" required></textarea>
 
     <label for="actionTakenInput">Action Taken:</label>
-    <textarea id="actionTakenInput" rows="2" placeholder="Describe action taken" required></textarea>
+    <textarea id="actionTakenInput" rows="2" placeholder="Describe corrective action taken" required></textarea>
 
     <label for="commentsInput">Additional Comments (Optional):</label>
     <textarea id="commentsInput" rows="2" placeholder="Add any other observations or notes"></textarea>
@@ -189,11 +193,12 @@
       <tr>
         <th>Asset Code</th>
         <th>Incident Date</th>
-        <th>Clock-In Time</th>
-        <th>Responsible Person</th>
+        <th>Time of Breakdown</th>
+        <th>Time of Startup</th>
+        <th>Artisans on Job</th>
         <th>Priority</th>
         <th>Task Performed</th>
-        <th>Fault Noted (5 Why)</th>
+        <th>Findings</th>
         <th>Action Taken</th>
         <th>Comments</th>
         <th>Actions</th>
@@ -298,22 +303,23 @@
       ////////////////////////////////////////////////////////////////////////////
       // 2) DOM Elements
       ////////////////////////////////////////////////////////////////////////////
-      const codeSuggestions        = document.getElementById('codeSuggestions');
-      const entryForm              = document.getElementById('entryForm');
-      const assetCodeInput         = document.getElementById('assetCodeInput');
-      const incidentDateInput      = document.getElementById('incidentDateInput');
-      const hourSelect             = document.getElementById('hourSelect');
-      const minuteSelect           = document.getElementById('minuteSelect');
-      const responsiblePersonInput = document.getElementById('responsiblePersonInput');
-      const priorityInput          = document.getElementById('priorityInput');
-      const taskPerformedInput     = document.getElementById('taskPerformedInput');
-      const faultNotedInput        = document.getElementById('faultNotedInput');
-      const actionTakenInput       = document.getElementById('actionTakenInput');
-      const commentsInput          = document.getElementById('commentsInput');
-      const entriesTableBody       = document.querySelector('#entriesTable tbody');
-      const generatePdfButton      = document.getElementById('generatePdf');
-      const clearAllButton         = document.getElementById('clearAll');
-      const pdfOrientationSelect   = document.getElementById('pdfOrientation');
+      const codeSuggestions     = document.getElementById('codeSuggestions');
+      const entryForm           = document.getElementById('entryForm');
+      const assetCodeInput      = document.getElementById('assetCodeInput');
+      const incidentDateInput   = document.getElementById('incidentDateInput');
+      const breakdownTimeInput  = document.getElementById('breakdownTimeInput');
+      const startupTimeInput    = document.getElementById('startupTimeInput');
+      const artisansInput       = document.getElementById('artisansInput');
+      const priorityInput       = document.getElementById('priorityInput');
+      const taskPerformedInput  = document.getElementById('taskPerformedInput');
+      const findingsInput       = document.getElementById('findingsInput');
+      const actionTakenInput    = document.getElementById('actionTakenInput');
+      const commentsInput       = document.getElementById('commentsInput');
+
+      const entriesTableBody    = document.querySelector('#entriesTable tbody');
+      const generatePdfButton   = document.getElementById('generatePdf');
+      const clearAllButton      = document.getElementById('clearAll');
+      const pdfOrientationSelect= document.getElementById('pdfOrientation');
 
       ////////////////////////////////////////////////////////////////////////////
       // 3) DataList for Asset Code Suggestions
@@ -349,23 +355,7 @@
       assetCodeInput.addEventListener('input', debounce(updateCodeSuggestions, 300));
 
       ////////////////////////////////////////////////////////////////////////////
-      // 4) Populate Time Selector (0–23 hours, 0–59 minutes)
-      ////////////////////////////////////////////////////////////////////////////
-      for (let h = 0; h < 24; h++) {
-        const opt = document.createElement('option');
-        opt.value = String(h).padStart(2, '0');
-        opt.textContent = String(h).padStart(2, '0');
-        hourSelect.appendChild(opt);
-      }
-      for (let m = 0; m < 60; m++) {
-        const opt = document.createElement('option');
-        opt.value = String(m).padStart(2, '0');
-        opt.textContent = String(m).padStart(2, '0');
-        minuteSelect.appendChild(opt);
-      }
-
-      ////////////////////////////////////////////////////////////////////////////
-      // 5) Debounce Helper
+      // 4) Debounce Helper
       ////////////////////////////////////////////////////////////////////////////
       function debounce(fn, delay) {
         let timeout;
@@ -376,12 +366,12 @@
       }
 
       ////////////////////////////////////////////////////////////////////////////
-      // 6) Render the Table (All entries, no filter)
+      // 5) Render the Table (All entries)
       ////////////////////////////////////////////////////////////////////////////
       function renderEntries() {
         entriesTableBody.innerHTML = '';
 
-        // Just show all entries, limit to 50 if needed
+        // Show all entries, limit to 50 if needed
         const rowsToShow = entries.slice(0, 50);
 
         rowsToShow.forEach(entry => {
@@ -415,33 +405,47 @@
           dateTd.appendChild(dateArea);
           row.appendChild(dateTd);
 
-          // Clock-In Time
-          const timeTd = document.createElement('td');
-          timeTd.setAttribute('data-label', 'Clock-In Time');
-          const timeArea = document.createElement('textarea');
-          timeArea.value = entry.artisanTimes || '';
-          timeArea.style.width = '100%';
-          timeArea.rows = 1;
-          timeArea.oninput = () => {
-            entry.artisanTimes = timeArea.value;
+          // Time of Breakdown
+          const breakdownTd = document.createElement('td');
+          breakdownTd.setAttribute('data-label', 'Time of Breakdown');
+          const breakdownArea = document.createElement('textarea');
+          breakdownArea.value = entry.breakdownTime || '';
+          breakdownArea.style.width = '100%';
+          breakdownArea.rows = 1;
+          breakdownArea.oninput = () => {
+            entry.breakdownTime = breakdownArea.value;
             updateEntryInDB(entry).catch(err => console.error("Error updating entry:", err));
           };
-          timeTd.appendChild(timeArea);
-          row.appendChild(timeTd);
+          breakdownTd.appendChild(breakdownArea);
+          row.appendChild(breakdownTd);
 
-          // Responsible Person
-          const personTd = document.createElement('td');
-          personTd.setAttribute('data-label', 'Responsible Person');
-          const personArea = document.createElement('textarea');
-          personArea.value = entry.responsiblePerson || '';
-          personArea.style.width = '100%';
-          personArea.rows = 1;
-          personArea.oninput = () => {
-            entry.responsiblePerson = personArea.value;
+          // Time of Startup
+          const startupTd = document.createElement('td');
+          startupTd.setAttribute('data-label', 'Time of Startup');
+          const startupArea = document.createElement('textarea');
+          startupArea.value = entry.startupTime || '';
+          startupArea.style.width = '100%';
+          startupArea.rows = 1;
+          startupArea.oninput = () => {
+            entry.startupTime = startupArea.value;
             updateEntryInDB(entry).catch(err => console.error("Error updating entry:", err));
           };
-          personTd.appendChild(personArea);
-          row.appendChild(personTd);
+          startupTd.appendChild(startupArea);
+          row.appendChild(startupTd);
+
+          // Artisans on Job
+          const artisansTd = document.createElement('td');
+          artisansTd.setAttribute('data-label', 'Artisans on Job');
+          const artisansArea = document.createElement('textarea');
+          artisansArea.value = entry.artisans || '';
+          artisansArea.style.width = '100%';
+          artisansArea.rows = 1;
+          artisansArea.oninput = () => {
+            entry.artisans = artisansArea.value;
+            updateEntryInDB(entry).catch(err => console.error("Error updating entry:", err));
+          };
+          artisansTd.appendChild(artisansArea);
+          row.appendChild(artisansTd);
 
           // Priority
           const priorityTd = document.createElement('td');
@@ -471,19 +475,19 @@
           taskTd.appendChild(taskArea);
           row.appendChild(taskTd);
 
-          // Fault Noted (5 Why)
-          const faultTd = document.createElement('td');
-          faultTd.setAttribute('data-label', 'Fault Noted (5 Why)');
-          const faultArea = document.createElement('textarea');
-          faultArea.value = entry.faultNoted || '';
-          faultArea.style.width = '100%';
-          faultArea.rows = 3;
-          faultArea.oninput = () => {
-            entry.faultNoted = faultArea.value;
+          // Findings
+          const findingsTd = document.createElement('td');
+          findingsTd.setAttribute('data-label', 'Findings');
+          const findingsArea = document.createElement('textarea');
+          findingsArea.value = entry.findings || '';
+          findingsArea.style.width = '100%';
+          findingsArea.rows = 3;
+          findingsArea.oninput = () => {
+            entry.findings = findingsArea.value;
             updateEntryInDB(entry).catch(err => console.error("Error updating entry:", err));
           };
-          faultTd.appendChild(faultArea);
-          row.appendChild(faultTd);
+          findingsTd.appendChild(findingsArea);
+          row.appendChild(findingsTd);
 
           // Action Taken
           const actionTd = document.createElement('td');
@@ -533,53 +537,51 @@
       }
 
       ////////////////////////////////////////////////////////////////////////////
-      // 7) Add new entry => Reload
+      // 6) Add new entry => Reload
       ////////////////////////////////////////////////////////////////////////////
       entryForm.addEventListener('submit', e => {
         e.preventDefault();
-        const code             = assetCodeInput.value.trim();
-        const incidentDate     = incidentDateInput.value.trim();
+        const code           = assetCodeInput.value.trim();
+        const date           = incidentDateInput.value.trim();
+        const breakdownTime  = breakdownTimeInput.value.trim();
+        const startupTime    = startupTimeInput.value.trim();
+        const artisansVal    = artisansInput.value.trim();
+        const priorityVal    = priorityInput.value.trim();
+        const taskVal        = taskPerformedInput.value.trim();
+        const findingsVal    = findingsInput.value.trim();
+        const actionVal      = actionTakenInput.value.trim();
+        const commentsVal    = commentsInput.value.trim();
 
-        // Combine hour/minute into "HH:MM"
-        const hourVal          = hourSelect.value;
-        const minuteVal        = minuteSelect.value;
-        const combinedTime     = hourVal + ":" + minuteVal;
-
-        const responsible      = responsiblePersonInput.value.trim();
-        const priorityVal      = priorityInput.value.trim();
-        const taskPerformed    = taskPerformedInput.value.trim();
-        const faultNoted       = faultNotedInput.value.trim();
-        const actionTaken      = actionTakenInput.value.trim();
-        const comments         = commentsInput.value.trim();
-
-        if (!code || !taskPerformed || !faultNoted || !actionTaken) {
-          alert('Please fill out all required fields (Asset Code, Task, Fault, Action).');
+        // Basic required checks
+        if (!code || !taskVal || !findingsVal || !actionVal) {
+          alert('Please fill out the required fields (Asset Code, Task, Findings, Action).');
           return;
         }
 
         const newEntry = {
           assetCode: code,
-          incidentDate: incidentDate,
-          artisanTimes: combinedTime,
-          responsiblePerson: responsible,
+          incidentDate: date,
+          breakdownTime: breakdownTime,
+          startupTime: startupTime,
+          artisans: artisansVal,
           priority: priorityVal,
-          taskPerformed: taskPerformed,
-          faultNoted: faultNoted,
-          actionTaken: actionTaken,
-          comments: comments,
+          taskPerformed: taskVal,
+          findings: findingsVal,
+          actionTaken: actionVal,
+          comments: commentsVal,
           timestamp: Date.now()
         };
 
         addEntryToDB(newEntry)
           .then(() => {
-            // Reload the page so the new entry definitely appears in the table
+            // Reload to ensure the new entry is visible
             location.reload();
           })
           .catch(err => console.error("Error adding entry:", err));
       });
 
       ////////////////////////////////////////////////////////////////////////////
-      // 8) PDF Generation with auto row height
+      // 7) PDF Generation with auto row height
       ////////////////////////////////////////////////////////////////////////////
       generatePdfButton.addEventListener('click', () => {
         const { jsPDF } = window.jspdf;
@@ -588,29 +590,40 @@
 
         const pageWidth = doc.internal.pageSize.getWidth();
         const pageHeight = doc.internal.pageSize.getHeight();
-        const margin = 40;                  // left/right margin
+        const margin = 40;   // left/right margin
         const startX = margin;
         let currentY = margin;
 
-        // We'll use smaller columns so nothing gets cut off
-        // Tweak these widths as you like (they must fit in pageWidth - 2*margin)
-        const colAssetW     = 60;
-        const colDateW      = 50;
-        const colTimeW      = 50;
-        const colPersonW    = 60;
-        const colPriorityW  = 50;
-        const colTaskW      = 80;
-        const colFaultW     = 80;
-        const colActionW    = 80;
-        const colCommentsW  = 100; // wider column for comments
+        /*
+          We'll define columns with short headers:
+          1) Asset (60)
+          2) Date (60)
+          3) Breakdown (70)
+          4) Startup (70)
+          5) Artisans (70)
+          6) Prio (40)
+          7) Task (80)
+          8) Findings (80)
+          9) Action (80)
+          10) Comments (80)
+        */
+        const colAssetW    = 60;
+        const colDateW     = 60;
+        const colBreakW    = 70;
+        const colStartW    = 70;
+        const colArtisanW  = 70;
+        const colPrioW     = 40;
+        const colTaskW     = 80;
+        const colFindW     = 80;
+        const colActionW   = 80;
+        const colCommW     = 80;
 
-        const tableW = colAssetW + colDateW + colTimeW + colPersonW
-                     + colPriorityW + colTaskW + colFaultW + colActionW
-                     + colCommentsW;
+        const tableW = colAssetW + colDateW + colBreakW + colStartW + colArtisanW
+                     + colPrioW + colTaskW + colFindW + colActionW + colCommW;
 
         const headerHeight = 25;
         const lineHeight   = 12; // line height for text
-        const topBottomPad = 6;  // extra padding for each row
+        const topBottomPad = 6;  // vertical padding in each row
 
         doc.setFontSize(12);
         doc.text('Root Cause Analysis', startX, currentY);
@@ -620,16 +633,18 @@
         function drawTableHeader(yPos) {
           drawRowBorder(yPos, headerHeight);
           doc.setFontSize(10);
+
           let xPos = startX + 5;
-          doc.text('Asset',    xPos, yPos + 15); xPos += colAssetW;
-          doc.text('Date',     xPos, yPos + 15); xPos += colDateW;
-          doc.text('ClockIn',  xPos, yPos + 15); xPos += colTimeW;
-          doc.text('Person',   xPos, yPos + 15); xPos += colPersonW;
-          doc.text('Prio',     xPos, yPos + 15); xPos += colPriorityW;
-          doc.text('Task',     xPos, yPos + 15); xPos += colTaskW;
-          doc.text('Fault',    xPos, yPos + 15); xPos += colFaultW;
-          doc.text('Action',   xPos, yPos + 15); xPos += colActionW;
-          doc.text('Comments', xPos, yPos + 15);
+          doc.text('Asset',      xPos, yPos + 15); xPos += colAssetW;
+          doc.text('Date',       xPos, yPos + 15); xPos += colDateW;
+          doc.text('Breakdown',  xPos, yPos + 15); xPos += colBreakW;
+          doc.text('Startup',    xPos, yPos + 15); xPos += colStartW;
+          doc.text('Artisans',   xPos, yPos + 15); xPos += colArtisanW;
+          doc.text('Prio',       xPos, yPos + 15); xPos += colPrioW;
+          doc.text('Task',       xPos, yPos + 15); xPos += colTaskW;
+          doc.text('Findings',   xPos, yPos + 15); xPos += colFindW;
+          doc.text('Action',     xPos, yPos + 15); xPos += colActionW;
+          doc.text('Comments',   xPos, yPos + 15);
         }
 
         function drawRowBorder(y, height) {
@@ -640,8 +655,8 @@
           // vertical col lines
           let xPos = startX;
           const colWidths = [
-            colAssetW, colDateW, colTimeW, colPersonW,
-            colPriorityW, colTaskW, colFaultW, colActionW, colCommentsW
+            colAssetW, colDateW, colBreakW, colStartW, colArtisanW,
+            colPrioW, colTaskW, colFindW, colActionW, colCommW
           ];
           for (let w of colWidths) {
             doc.line(xPos, y, xPos, y + height);
@@ -650,36 +665,34 @@
           doc.line(xPos, y, xPos, y + height);
         }
 
-        // Draw the table header row
         drawTableHeader(currentY);
         currentY += headerHeight;
 
-        // For each entry, split text, find max lines, compute row height, etc.
         doc.setFontSize(9);
 
-        // All entries, no filter
+        // We'll render ALL entries (no filter)
         for (let entry of entries) {
-          // We'll get splitted lines for each column
-          let wrapAsset    = doc.splitTextToSize(entry.assetCode || '',       colAssetW     - 10);
-          let wrapDate     = doc.splitTextToSize(entry.incidentDate || '',    colDateW      - 10);
-          let wrapTime     = doc.splitTextToSize(entry.artisanTimes || '',    colTimeW      - 10);
-          let wrapPerson   = doc.splitTextToSize(entry.responsiblePerson || '', colPersonW  - 10);
-          let wrapPriority = doc.splitTextToSize(entry.priority || '',        colPriorityW  - 10);
-          let wrapTask     = doc.splitTextToSize(entry.taskPerformed || '',   colTaskW      - 10);
-          let wrapFault    = doc.splitTextToSize(entry.faultNoted || '',      colFaultW     - 10);
-          let wrapAction   = doc.splitTextToSize(entry.actionTaken || '',     colActionW    - 10);
-          let wrapComment  = doc.splitTextToSize(entry.comments || '',        colCommentsW  - 10);
+          // Split text for each column
+          let wrapAsset    = doc.splitTextToSize(entry.assetCode        || '', colAssetW   - 10);
+          let wrapDate     = doc.splitTextToSize(entry.incidentDate     || '', colDateW    - 10);
+          let wrapBreak    = doc.splitTextToSize(entry.breakdownTime    || '', colBreakW   - 10);
+          let wrapStart    = doc.splitTextToSize(entry.startupTime      || '', colStartW   - 10);
+          let wrapArtisan  = doc.splitTextToSize(entry.artisans         || '', colArtisanW - 10);
+          let wrapPrio     = doc.splitTextToSize(entry.priority         || '', colPrioW    - 10);
+          let wrapTask     = doc.splitTextToSize(entry.taskPerformed    || '', colTaskW    - 10);
+          let wrapFind     = doc.splitTextToSize(entry.findings         || '', colFindW    - 10);
+          let wrapAction   = doc.splitTextToSize(entry.actionTaken      || '', colActionW  - 10);
+          let wrapComments = doc.splitTextToSize(entry.comments         || '', colCommW    - 10);
 
-          // Number of lines in each column
+          // find the max number of lines among these columns
           let linesCount = [
-            wrapAsset.length, wrapDate.length, wrapTime.length, wrapPerson.length,
-            wrapPriority.length, wrapTask.length, wrapFault.length, wrapAction.length, wrapComment.length
+            wrapAsset.length, wrapDate.length, wrapBreak.length, wrapStart.length, wrapArtisan.length,
+            wrapPrio.length, wrapTask.length, wrapFind.length, wrapAction.length, wrapComments.length
           ];
-          // The row height = (max lines * lineHeight) + topBottomPad
           let maxLines = Math.max(...linesCount);
           let rowHeight = (maxLines * lineHeight) + topBottomPad;
 
-          // Check if new row fits on page; if not, add page, draw header again
+          // check page break
           if (currentY + rowHeight > pageHeight - margin) {
             doc.addPage();
             currentY = margin;
@@ -687,24 +700,23 @@
             currentY += headerHeight;
           }
 
-          // Draw the row border
+          // draw row border
           drawRowBorder(currentY, rowHeight);
 
-          // Print text in columns
           let textX = startX + 5;
           let textY = currentY + lineHeight; // first line baseline
 
-          doc.text(wrapAsset,    textX,              textY); textX += colAssetW;
-          doc.text(wrapDate,     textX,              textY); textX += colDateW;
-          doc.text(wrapTime,     textX,              textY); textX += colTimeW;
-          doc.text(wrapPerson,   textX,              textY); textX += colPersonW;
-          doc.text(wrapPriority, textX,              textY); textX += colPriorityW;
-          doc.text(wrapTask,     textX,              textY); textX += colTaskW;
-          doc.text(wrapFault,    textX,              textY); textX += colFaultW;
-          doc.text(wrapAction,   textX,              textY); textX += colActionW;
-          doc.text(wrapComment,  textX,              textY);
+          doc.text(wrapAsset,    textX, textY); textX += colAssetW;
+          doc.text(wrapDate,     textX, textY); textX += colDateW;
+          doc.text(wrapBreak,    textX, textY); textX += colBreakW;
+          doc.text(wrapStart,    textX, textY); textX += colStartW;
+          doc.text(wrapArtisan,  textX, textY); textX += colArtisanW;
+          doc.text(wrapPrio,     textX, textY); textX += colPrioW;
+          doc.text(wrapTask,     textX, textY); textX += colTaskW;
+          doc.text(wrapFind,     textX, textY); textX += colFindW;
+          doc.text(wrapAction,   textX, textY); textX += colActionW;
+          doc.text(wrapComments, textX, textY);
 
-          // Move to next row
           currentY += rowHeight;
         }
 
@@ -712,7 +724,7 @@
       });
 
       ////////////////////////////////////////////////////////////////////////////
-      // 9) Clear All
+      // 8) Clear All
       ////////////////////////////////////////////////////////////////////////////
       clearAllButton.addEventListener('click', async () => {
         if (confirm("Are you sure you want to clear all entries? This action cannot be undone.")) {
@@ -726,7 +738,7 @@
       });
 
       ////////////////////////////////////////////////////////////////////////////
-      // 10) On load: open DB, load entries
+      // 9) On load: open DB, load entries
       ////////////////////////////////////////////////////////////////////////////
       openDatabase()
         .then(() => refreshEntries())
