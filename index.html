@@ -7,165 +7,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
     <style>
-        /* Global styling with gradient background and emojis */
-        body {
-            font-family: Arial, sans-serif;
-            margin: 20px;
-            max-width: 1000px;
-            margin-left: auto;
-            margin-right: auto;
-            background: linear-gradient(to bottom right, #f0f0f0, #ffffff);
-        }
-
-        /* Add an emoji before the title */
-        h1:before {
-            content: "🔍 ";
-        }
-
-        h1, h2 {
-            text-align: center;
-            margin-top: 10px;
-            margin-bottom: 10px;
-        }
-
-        form, .buttons {
-            margin: 20px 0;
-            text-align: center;
-        }
-
-        label {
-            display: block;
-            margin: 5px 0 2px;
-            font-weight: bold;
-        }
-
-        select, input, button, textarea {
-            margin: 5px 0;
-            width: 100%;
-            box-sizing: border-box;
-            font-size: 1rem;
-            padding: 6px;
-            border-radius: 4px;
-            border: 1px solid #ccc;
-        }
-
-        textarea {
-            resize: vertical;
-        }
-
-        button {
-            cursor: pointer;
-            border: none;
-            background-color: #0078d7;
-            color: white;
-            padding: 8px 12px;
-            font-size: 1rem;
-            border-radius: 4px;
-            margin: 5px;
-        }
-
-        button:hover {
-            background-color: #005fab;
-        }
-
-        /* Table styling with auto-wrapping columns */
-        table {
-            border-collapse: collapse;
-            width: 100%;
-            margin-top: 20px;
-            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
-            border-radius: 4px;
-            overflow: hidden;
-            table-layout: fixed; /* Ensures columns have fixed widths */
-        }
-
-        table thead tr {
-            background-color: #f7f7f7;
-        }
-
-        th, td {
-            border: 1px solid #ddd;
-            padding: 10px;
-            vertical-align: top;
-            word-wrap: break-word;        /* wrap text within cells */
-            white-space: normal;          /* allow multi-line text */
-        }
-
-        th {
-            background: #f9f9f9;
-        }
-
-        /* Hover effect for table rows */
-        tbody tr:hover {
-            background-color: #fafafa;
-        }
-
-        /* Responsive table for smaller screens */
-        @media (max-width: 600px) {
-            table, thead, tbody, th, td, tr {
-                display: block;
-                width: 100%;
-            }
-            thead {
-                display: none;
-            }
-            tr {
-                margin-bottom: 20px;
-                border: 1px solid #ccc;
-            }
-            td {
-                border: none;
-                padding: 5px 0;
-            }
-            td:before {
-                content: attr(data-label);
-                font-weight: bold;
-                display: block;
-            }
-        }
-
-        /* Toast notification styles */
-        .toast {
-            visibility: hidden;
-            min-width: 250px;
-            margin-left: -125px;
-            background-color: #333;
-            color: #fff;
-            text-align: center;
-            border-radius: 2px;
-            padding: 16px;
-            position: fixed;
-            z-index: 1;
-            left: 50%;
-            bottom: 30px;
-            font-size: 17px;
-        }
-
-        .toast.show {
-            visibility: visible;
-            -webkit-animation: fadein 0.5s, fadeout 0.5s 2.5s;
-            animation: fadein 0.5s, fadeout 0.5s 2.5s;
-        }
-
-        @-webkit-keyframes fadein {
-            from {bottom: 0; opacity: 0;}
-            to {bottom: 30px; opacity: 1;}
-        }
-
-        @keyframes fadein {
-            from {bottom: 0; opacity: 0;}
-            to {bottom: 30px; opacity: 1;}
-        }
-
-        @-webkit-keyframes fadeout {
-            from {bottom: 30px; opacity: 1;}
-            to {bottom: 0; opacity: 0;}
-        }
-
-        @keyframes fadeout {
-            from {bottom: 30px; opacity: 1;}
-            to {bottom: 0; opacity: 0;}
-        }
+        /* Your existing CSS */
     </style>
 </head>
 <body>
@@ -406,17 +248,15 @@
             const MAX_SUGGESTIONS = 50;
             let assetCodeWorker;
 
-            // Check if Web Workers are supported
+            // Create a new Web Worker
             if (window.Worker) {
-                // Create a new Web Worker instance
                 assetCodeWorker = new Worker('assetCodeWorker.js');
 
-                // Listen for messages *from* the worker
+                // Listen for messages from the worker
                 assetCodeWorker.onmessage = function(e) {
                     if (e.data.type === 'filteredCodes') {
                         const filteredCodes = e.data.codes;
                         codeSuggestions.innerHTML = ''; // Clear existing suggestions
-                        // Populate the datalist with new suggestions
                         filteredCodes.forEach(code => {
                             const opt = document.createElement('option');
                             opt.value = code;
@@ -425,13 +265,12 @@
                     }
                 };
 
-                // Handle errors from the worker
                 assetCodeWorker.onerror = function(error) {
                     console.error("Web Worker error:", error);
                     showToast("Error processing asset codes in the background.");
                 };
 
-                // Fetch asset codes from the text file and send them to the worker once
+                // Fetch asset codes and send them to the worker once
                 fetch('assetCodes.txt')
                     .then(res => {
                         if (!res.ok) {
@@ -448,18 +287,18 @@
                     })
                     .catch(err => {
                         console.error("Error fetching assetCodes.txt:", err);
-                        showToast("Could not load asset code suggestions. Please create 'assetCodes.txt' with one code per line.");
+                        showToast("Could not load asset code suggestions. Please check 'assetCodes.txt'.");
                     });
 
-                // Set up the input event listener for the asset code field
+                // Update suggestions as the user types in the asset code
                 assetCodeInput.addEventListener('input', debounce(() => {
                     const typed = assetCodeInput.value.trim();
                     // Send the typed value to the worker for filtering
                     assetCodeWorker.postMessage({ type: 'filterCodes', data: { typed, MAX_SUGGESTIONS } });
-                }, 150)); // Reduced debounce delay to 150ms for faster suggestions
+                }, 300));
 
             } else {
-                // Fallback for browsers that do not support Web Workers
+                // Fallback if Web Workers are not supported (e.g., older browsers)
                 showToast("Your browser does not support Web Workers. Asset code search might be slow for large lists.");
                 let allCodes = []; // Keep a local copy for fallback
 
@@ -477,15 +316,14 @@
                     })
                     .catch(err => {
                         console.error("Error fetching assetCodes.txt (fallback):", err);
-                        showToast("Could not load asset code suggestions. Please create 'assetCodes.txt' with one code per line.");
+                        showToast("Could not load asset code suggestions. Please check 'assetCodes.txt'.");
                     });
 
-                // Fallback function to update suggestions directly in the main thread
                 function updateCodeSuggestionsFallback() {
                     codeSuggestions.innerHTML = '';
                     const typed = assetCodeInput.value.trim().toLowerCase();
                     if (!typed) {
-                        return; // If no input, do not fill suggestions
+                        return;
                     }
                     const matched = allCodes.filter(code => code.toLowerCase().includes(typed));
                     matched.slice(0, MAX_SUGGESTIONS).forEach(code => {
@@ -494,11 +332,12 @@
                         codeSuggestions.appendChild(opt);
                     });
                 }
-                assetCodeInput.addEventListener('input', debounce(updateCodeSuggestionsFallback, 150)); // Debounce applied to fallback too
+                assetCodeInput.addEventListener('input', debounce(updateCodeSuggestionsFallback, 300));
             }
 
+
             ////////////////////////////////////////////////////////////////////////////
-            // 4) Debounce Helper
+            // 4) Debounce Helper (remains the same)
             ////////////////////////////////////////////////////////////////////////////
             function debounce(fn, delay) {
                 let timeout;
@@ -508,6 +347,7 @@
                 };
             }
 
+            // ... (rest of your JavaScript code remains the same)
             ////////////////////////////////////////////////////////////////////////////
             // 5) Render the Table (All entries)
             ////////////////////////////////////////////////////////////////////////////
@@ -531,7 +371,7 @@
                         textarea.oninput = debounce(() => { // Debounce updates to avoid excessive DB writes
                             entry[propName] = textarea.value;
                             updateEntryInDB(entry).catch(err => console.error(`Error updating ${propName}:`, err));
-                        }, 500); // 500ms debounce for database updates
+                        }, 500); // 500ms debounce
                         td.appendChild(textarea);
                         return td;
                     }
@@ -741,7 +581,7 @@
             });
 
             ////////////////////////////////////////////////////////////////////////////
-            // 8) Excel Generation
+            // NEW: 8) Excel Generation
             ////////////////////////////////////////////////////////////////////////////
             generateExcelButton.addEventListener('click', () => {
                 if (entries.length === 0) {
