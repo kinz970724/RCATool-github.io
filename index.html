@@ -381,65 +381,121 @@
             ////////////////////////////////////////////////////////////////////////////
             // 2) DOM Elements
             ////////////////////////////////////////////////////////////////////////////
-            const codeSuggestions       = document.getElementById('codeSuggestions');
-            const entryForm             = document.getElementById('entryForm');
-            const assetCodeInput        = document.getElementById('assetCodeInput');
-            const incidentDateInput     = document.getElementById('incidentDateInput');
-            const breakdownTimeInput    = document.getElementById('breakdownTimeInput');
-            const startupTimeInput      = document.getElementById('startupTimeInput');
-            const artisansInput         = document.getElementById('artisansInput');
-            const priorityInput         = document.getElementById('priorityInput');
-            const taskPerformedInput    = document.getElementById('taskPerformedInput');
-            const findingsInput         = document.getElementById('findingsInput');
-            const actionTakenInput      = document.getElementById('actionTakenInput');
-            const commentsInput         = document.getElementById('commentsInput');
+            const codeSuggestions         = document.getElementById('codeSuggestions');
+            const entryForm               = document.getElementById('entryForm');
+            const assetCodeInput          = document.getElementById('assetCodeInput');
+            const incidentDateInput       = document.getElementById('incidentDateInput');
+            const breakdownTimeInput      = document.getElementById('breakdownTimeInput');
+            const startupTimeInput        = document.getElementById('startupTimeInput');
+            const artisansInput           = document.getElementById('artisansInput');
+            const priorityInput           = document.getElementById('priorityInput');
+            const taskPerformedInput      = document.getElementById('taskPerformedInput');
+            const findingsInput           = document.getElementById('findingsInput');
+            const actionTakenInput        = document.getElementById('actionTakenInput');
+            const commentsInput           = document.getElementById('commentsInput');
 
-            const entriesTableBody      = document.querySelector('#entriesTable tbody');
-            const generatePdfButton     = document.getElementById('generatePdf');
-            // NEW: Excel Button Reference
-            const generateExcelButton   = document.getElementById('generateExcel');
-            const clearAllButton        = document.getElementById('clearAll');
-            const pdfOrientationSelect  = document.getElementById('pdfOrientation');
+            const entriesTableBody        = document.querySelector('#entriesTable tbody');
+            const generatePdfButton       = document.getElementById('generatePdf');
+            const generateExcelButton     = document.getElementById('generateExcel');
+            const clearAllButton          = document.getElementById('clearAll');
+            const pdfOrientationSelect    = document.getElementById('pdfOrientation');
 
             ////////////////////////////////////////////////////////////////////////////
-            // 3) DataList for Asset Code Suggestions
+            // 3) DataList for Asset Code Suggestions - NOW USING WEB WORKER
             ////////////////////////////////////////////////////////////////////////////
-            let allCodes = [];
-            fetch('assetCodes.txt')
-                .then(res => {
-                    if (!res.ok) {
-                        throw new Error(`HTTP error! status: ${res.status}`);
+            const MAX_SUGGESTIONS = 50;
+            let assetCodeWorker;
+
+            // Check if Web Workers are supported
+            if (window.Worker) {
+                // Create a new Web Worker instance
+                assetCodeWorker = new Worker('assetCodeWorker.js');
+
+                // Listen for messages *from* the worker
+                assetCodeWorker.onmessage = function(e) {
+                    if (e.data.type === 'filteredCodes') {
+                        const filteredCodes = e.data.codes;
+                        codeSuggestions.innerHTML = ''; // Clear existing suggestions
+                        // Populate the datalist with new suggestions
+                        filteredCodes.forEach(code => {
+                            const opt = document.createElement('option');
+                            opt.value = code;
+                            codeSuggestions.appendChild(opt);
+                        });
                     }
-                    return res.text();
-                })
-                .then(data => {
-                    allCodes = data.split('\n')
-                                   .map(line => line.trim())
-                                   .filter(line => line !== '');
-                })
-                .catch(err => {
-                    console.error("Error fetching assetCodes.txt:", err);
-                    showToast("Could not load asset code suggestions. Please check 'assetCodes.txt'.");
-                });
+                };
 
-            function updateCodeSuggestions() {
-                codeSuggestions.innerHTML = '';
-                const typed = assetCodeInput.value.trim().toLowerCase();
-                const MAX_SUGGESTIONS = 50;
-                if (!typed) {
-                    return; // if no input, do not fill suggestions
+                // Handle errors from the worker
+                assetCodeWorker.onerror = function(error) {
+                    console.error("Web Worker error:", error);
+                    showToast("Error processing asset codes in the background.");
+                };
+
+                // Fetch asset codes from the text file and send them to the worker once
+                fetch('assetCodes.txt')
+                    .then(res => {
+                        if (!res.ok) {
+                            throw new Error(`HTTP error! status: ${res.status}`);
+                        }
+                        return res.text();
+                    })
+                    .then(data => {
+                        const allCodes = data.split('\n')
+                                            .map(line => line.trim())
+                                            .filter(line => line !== '');
+                        // Send the full list of codes to the worker for initialization
+                        assetCodeWorker.postMessage({ type: 'initCodes', data: allCodes });
+                    })
+                    .catch(err => {
+                        console.error("Error fetching assetCodes.txt:", err);
+                        showToast("Could not load asset code suggestions. Please create 'assetCodes.txt' with one code per line.");
+                    });
+
+                // Set up the input event listener for the asset code field
+                assetCodeInput.addEventListener('input', debounce(() => {
+                    const typed = assetCodeInput.value.trim();
+                    // Send the typed value to the worker for filtering
+                    assetCodeWorker.postMessage({ type: 'filterCodes', data: { typed, MAX_SUGGESTIONS } });
+                }, 150)); // Reduced debounce delay to 150ms for faster suggestions
+
+            } else {
+                // Fallback for browsers that do not support Web Workers
+                showToast("Your browser does not support Web Workers. Asset code search might be slow for large lists.");
+                let allCodes = []; // Keep a local copy for fallback
+
+                fetch('assetCodes.txt')
+                    .then(res => {
+                        if (!res.ok) {
+                            throw new Error(`HTTP error! status: ${res.status}`);
+                        }
+                        return res.text();
+                    })
+                    .then(data => {
+                        allCodes = data.split('\n')
+                                        .map(line => line.trim())
+                                        .filter(line => line !== '');
+                    })
+                    .catch(err => {
+                        console.error("Error fetching assetCodes.txt (fallback):", err);
+                        showToast("Could not load asset code suggestions. Please create 'assetCodes.txt' with one code per line.");
+                    });
+
+                // Fallback function to update suggestions directly in the main thread
+                function updateCodeSuggestionsFallback() {
+                    codeSuggestions.innerHTML = '';
+                    const typed = assetCodeInput.value.trim().toLowerCase();
+                    if (!typed) {
+                        return; // If no input, do not fill suggestions
+                    }
+                    const matched = allCodes.filter(code => code.toLowerCase().includes(typed));
+                    matched.slice(0, MAX_SUGGESTIONS).forEach(code => {
+                        const opt = document.createElement('option');
+                        opt.value = code;
+                        codeSuggestions.appendChild(opt);
+                    });
                 }
-
-                const matched = allCodes.filter(code => code.toLowerCase().includes(typed));
-                matched.slice(0, MAX_SUGGESTIONS).forEach(code => {
-                    const opt = document.createElement('option');
-                    opt.value = code;
-                    codeSuggestions.appendChild(opt);
-                });
+                assetCodeInput.addEventListener('input', debounce(updateCodeSuggestionsFallback, 150)); // Debounce applied to fallback too
             }
-
-            // Update suggestions as the user types in the asset code
-            assetCodeInput.addEventListener('input', debounce(updateCodeSuggestions, 300));
 
             ////////////////////////////////////////////////////////////////////////////
             // 4) Debounce Helper
@@ -475,7 +531,7 @@
                         textarea.oninput = debounce(() => { // Debounce updates to avoid excessive DB writes
                             entry[propName] = textarea.value;
                             updateEntryInDB(entry).catch(err => console.error(`Error updating ${propName}:`, err));
-                        }, 500); // 500ms debounce
+                        }, 500); // 500ms debounce for database updates
                         td.appendChild(textarea);
                         return td;
                     }
@@ -518,16 +574,16 @@
             ////////////////////////////////////////////////////////////////////////////
             entryForm.addEventListener('submit', async e => {
                 e.preventDefault();
-                const code             = assetCodeInput.value.trim();
-                const date             = incidentDateInput.value.trim();
-                const breakdownTime    = breakdownTimeInput.value.trim();
-                const startupTime      = startupTimeInput.value.trim();
-                const artisansVal      = artisansInput.value.trim();
-                const priorityVal      = priorityInput.value.trim();
-                const taskVal          = taskPerformedInput.value.trim();
-                const findingsVal      = findingsInput.value.trim();
-                const actionVal        = actionTakenInput.value.trim();
-                const commentsVal      = commentsInput.value.trim();
+                const code            = assetCodeInput.value.trim();
+                const date            = incidentDateInput.value.trim();
+                const breakdownTime   = breakdownTimeInput.value.trim();
+                const startupTime     = startupTimeInput.value.trim();
+                const artisansVal     = artisansInput.value.trim();
+                const priorityVal     = priorityInput.value.trim();
+                const taskVal         = taskPerformedInput.value.trim();
+                const findingsVal     = findingsInput.value.trim();
+                const actionVal       = actionTakenInput.value.trim();
+                const commentsVal     = commentsInput.value.trim();
 
                 // Basic required checks
                 if (!code || !taskVal || !findingsVal || !actionVal) {
@@ -685,7 +741,7 @@
             });
 
             ////////////////////////////////////////////////////////////////////////////
-            // NEW: 8) Excel Generation
+            // 8) Excel Generation
             ////////////////////////////////////////////////////////////////////////////
             generateExcelButton.addEventListener('click', () => {
                 if (entries.length === 0) {
