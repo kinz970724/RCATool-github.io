@@ -1,749 +1,751 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>Root Cause Analysis</title>
-  <!-- Make pages scale nicely on phones -->
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <!-- jsPDF from CDN for PDF generation -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <style>
-    /* Global styling with gradient background and emojis */
-    body {
-      font-family: Arial, sans-serif;
-      margin: 20px;
-      max-width: 1000px;
-      margin-left: auto;
-      margin-right: auto;
-      background: linear-gradient(to bottom right, #f0f0f0, #ffffff);
-    }
+    <meta charset="UTF-8" />
+    <title>Root Cause Analysis</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
+    <style>
+        /* Global styling with gradient background and emojis */
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            max-width: 1000px;
+            margin-left: auto;
+            margin-right: auto;
+            background: linear-gradient(to bottom right, #f0f0f0, #ffffff);
+        }
 
-    /* Add an emoji before the title */
-    h1:before {
-      content: "🔍 ";
-    }
+        /* Add an emoji before the title */
+        h1:before {
+            content: "🔍 ";
+        }
 
-    h1, h2 {
-      text-align: center;
-      margin-top: 10px;
-      margin-bottom: 10px;
-    }
+        h1, h2 {
+            text-align: center;
+            margin-top: 10px;
+            margin-bottom: 10px;
+        }
 
-    form, .buttons {
-      margin: 20px 0;
-      text-align: center;
-    }
+        form, .buttons {
+            margin: 20px 0;
+            text-align: center;
+        }
 
-    label {
-      display: block;
-      margin: 5px 0 2px;
-      font-weight: bold;
-    }
+        label {
+            display: block;
+            margin: 5px 0 2px;
+            font-weight: bold;
+        }
 
-    select, input, button, textarea {
-      margin: 5px 0;
-      width: 100%;
-      box-sizing: border-box;
-      font-size: 1rem;
-      padding: 6px;
-      border-radius: 4px;
-      border: 1px solid #ccc;
-    }
+        select, input, button, textarea {
+            margin: 5px 0;
+            width: 100%;
+            box-sizing: border-box;
+            font-size: 1rem;
+            padding: 6px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+        }
 
-    textarea {
-      resize: vertical;
-    }
+        textarea {
+            resize: vertical;
+        }
 
-    button {
-      cursor: pointer;
-      border: none;
-      background-color: #0078d7;
-      color: white;
-      padding: 8px 12px;
-      font-size: 1rem;
-      border-radius: 4px;
-      margin: 5px;
-    }
+        button {
+            cursor: pointer;
+            border: none;
+            background-color: #0078d7;
+            color: white;
+            padding: 8px 12px;
+            font-size: 1rem;
+            border-radius: 4px;
+            margin: 5px;
+        }
 
-    button:hover {
-      background-color: #005fab;
-    }
+        button:hover {
+            background-color: #005fab;
+        }
 
-    /* Table styling with auto-wrapping columns */
-    table {
-      border-collapse: collapse;
-      width: 100%;
-      margin-top: 20px;
-      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
-      border-radius: 4px;
-      overflow: hidden;
-      table-layout: fixed; /* Ensures columns have fixed widths */
-    }
+        /* Table styling with auto-wrapping columns */
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-top: 20px;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+            border-radius: 4px;
+            overflow: hidden;
+            table-layout: fixed; /* Ensures columns have fixed widths */
+        }
 
-    table thead tr {
-      background-color: #f7f7f7;
-    }
+        table thead tr {
+            background-color: #f7f7f7;
+        }
 
-    th, td {
-      border: 1px solid #ddd;
-      padding: 10px;
-      vertical-align: top;
-      word-wrap: break-word;      /* wrap text within cells */
-      white-space: normal;        /* allow multi-line text */
-    }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 10px;
+            vertical-align: top;
+            word-wrap: break-word;        /* wrap text within cells */
+            white-space: normal;          /* allow multi-line text */
+        }
 
-    th {
-      background: #f9f9f9;
-    }
+        th {
+            background: #f9f9f9;
+        }
 
-    /* Hover effect for table rows */
-    tbody tr:hover {
-      background-color: #fafafa;
-    }
+        /* Hover effect for table rows */
+        tbody tr:hover {
+            background-color: #fafafa;
+        }
 
-    /* Responsive table for smaller screens */
-    @media (max-width: 600px) {
-      table, thead, tbody, th, td, tr {
-        display: block;
-        width: 100%;
-      }
-      thead {
-        display: none;
-      }
-      tr {
-        margin-bottom: 20px;
-        border: 1px solid #ccc;
-      }
-      td {
-        border: none;
-        padding: 5px 0;
-      }
-      td:before {
-        content: attr(data-label);
-        font-weight: bold;
-        display: block;
-      }
-    }
-  </style>
+        /* Responsive table for smaller screens */
+        @media (max-width: 600px) {
+            table, thead, tbody, th, td, tr {
+                display: block;
+                width: 100%;
+            }
+            thead {
+                display: none;
+            }
+            tr {
+                margin-bottom: 20px;
+                border: 1px solid #ccc;
+            }
+            td {
+                border: none;
+                padding: 5px 0;
+            }
+            td:before {
+                content: attr(data-label);
+                font-weight: bold;
+                display: block;
+            }
+        }
+
+        /* Toast notification styles */
+        .toast {
+            visibility: hidden;
+            min-width: 250px;
+            margin-left: -125px;
+            background-color: #333;
+            color: #fff;
+            text-align: center;
+            border-radius: 2px;
+            padding: 16px;
+            position: fixed;
+            z-index: 1;
+            left: 50%;
+            bottom: 30px;
+            font-size: 17px;
+        }
+
+        .toast.show {
+            visibility: visible;
+            -webkit-animation: fadein 0.5s, fadeout 0.5s 2.5s;
+            animation: fadein 0.5s, fadeout 0.5s 2.5s;
+        }
+
+        @-webkit-keyframes fadein {
+            from {bottom: 0; opacity: 0;}
+            to {bottom: 30px; opacity: 1;}
+        }
+
+        @keyframes fadein {
+            from {bottom: 0; opacity: 0;}
+            to {bottom: 30px; opacity: 1;}
+        }
+
+        @-webkit-keyframes fadeout {
+            from {bottom: 30px; opacity: 1;}
+            to {bottom: 0; opacity: 0;}
+        }
+
+        @keyframes fadeout {
+            from {bottom: 30px; opacity: 1;}
+            to {bottom: 0; opacity: 0;}
+        }
+    </style>
 </head>
 <body>
-  <h1>Root Cause Analysis</h1>
+    <h1>Root Cause Analysis</h1>
 
-  <!-- The Add Entry Form -->
-  <form id="entryForm">
-    <!-- ASSET CODE with DataList (suggestions loaded from assetCodes.txt) -->
-    <label for="assetCodeInput">Asset Code:</label>
-    <input type="text" id="assetCodeInput" placeholder="e.g. 131-CON-01..." list="codeSuggestions" required />
-    <datalist id="codeSuggestions"></datalist>
+    <form id="entryForm">
+        <label for="assetCodeInput">Asset Code:</label>
+        <input type="text" id="assetCodeInput" placeholder="e.g. 131-CON-01..." list="codeSuggestions" required />
+        <datalist id="codeSuggestions"></datalist>
 
-    <label for="incidentDateInput">Incident Date:</label>
-    <input type="date" id="incidentDateInput" />
+        <label for="incidentDateInput">Incident Date:</label>
+        <input type="date" id="incidentDateInput" />
 
-    <!-- TIME OF BREAKDOWN -->
-    <label for="breakdownTimeInput">Time of Breakdown:</label>
-    <input type="time" id="breakdownTimeInput" />
+        <label for="breakdownTimeInput">Time of Breakdown:</label>
+        <input type="time" id="breakdownTimeInput" />
 
-    <!-- TIME OF STARTUP -->
-    <label for="startupTimeInput">Time of Startup:</label>
-    <input type="time" id="startupTimeInput" />
+        <label for="startupTimeInput">Time of Startup:</label>
+        <input type="time" id="startupTimeInput" />
 
-    <!-- ARTISANS ON JOB -->
-    <label for="artisansInput">Artisans on Job:</label>
-    <input type="text" id="artisansInput" placeholder="Names/IDs of who performed task" />
+        <label for="artisansInput">Artisans on Job:</label>
+        <input type="text" id="artisansInput" placeholder="Names/IDs of who performed task" />
 
-    <label for="priorityInput">Priority:</label>
-    <select id="priorityInput">
-      <option value="">-- Select Priority --</option>
-      <option value="Low">Low</option>
-      <option value="Medium">Medium</option>
-      <option value="High">High</option>
-    </select>
+        <label for="priorityInput">Priority:</label>
+        <select id="priorityInput">
+            <option value="">-- Select Priority --</option>
+            <option value="Low">Low</option>
+            <option value="Medium">Medium</option>
+            <option value="High">High</option>
+        </select>
 
-    <!-- WHAT WAS DONE -->
-    <label for="taskPerformedInput">Task Performed:</label>
-    <textarea id="taskPerformedInput" rows="2" placeholder="Describe the task or rectification performed" required></textarea>
+        <label for="taskPerformedInput">Task Performed:</label>
+        <textarea id="taskPerformedInput" rows="2" placeholder="Describe the task or rectification performed" required></textarea>
 
-    <!-- WHAT THEY FOUND -->
-    <label for="findingsInput">Findings (5 Why):</label>
-    <textarea id="findingsInput" rows="3" placeholder="Root cause analysis or observed faults" required></textarea>
+        <label for="findingsInput">Findings (5 Why):</label>
+        <textarea id="findingsInput" rows="3" placeholder="Root cause analysis or observed faults" required></textarea>
 
-    <label for="actionTakenInput">Action Taken:</label>
-    <textarea id="actionTakenInput" rows="2" placeholder="Describe corrective action taken" required></textarea>
+        <label for="actionTakenInput">Action Taken:</label>
+        <textarea id="actionTakenInput" rows="2" placeholder="Describe corrective action taken" required></textarea>
 
-    <label for="commentsInput">Additional Comments (Optional):</label>
-    <textarea id="commentsInput" rows="2" placeholder="Add any other observations or notes"></textarea>
+        <label for="commentsInput">Additional Comments (Optional):</label>
+        <textarea id="commentsInput" rows="2" placeholder="Add any other observations or notes"></textarea>
 
-    <button type="submit">Add Entry</button>
-  </form>
+        <button type="submit">Add Entry</button>
+    </form>
 
-  <div class="buttons">
-    <!-- PDF Orientation Selector -->
-    <label for="pdfOrientation">PDF Orientation:</label>
-    <select id="pdfOrientation">
-      <option value="l">Landscape</option>
-      <option value="p">Portrait</option>
-    </select>
-    <button id="generatePdf">Generate PDF</button>
-    <button id="clearAll">Clear All Entries</button>
-  </div>
+    <div class="buttons">
+        <label for="pdfOrientation">PDF Orientation:</label>
+        <select id="pdfOrientation">
+            <option value="l">Landscape</option>
+            <option value="p">Portrait</option>
+        </select>
+        <button id="generatePdf">Generate PDF</button>
+        <button id="generateExcel">Generate Excel</button>
+        <button id="clearAll">Clear All Entries</button>
+    </div>
 
-  <h2>Existing Entries</h2>
-  <table id="entriesTable">
-    <thead>
-      <tr>
-        <th>Asset Code</th>
-        <th>Incident Date</th>
-        <th>Time of Breakdown</th>
-        <th>Time of Startup</th>
-        <th>Artisans on Job</th>
-        <th>Priority</th>
-        <th>Task Performed</th>
-        <th>Findings</th>
-        <th>Action Taken</th>
-        <th>Comments</th>
-        <th>Actions</th>
-      </tr>
-    </thead>
-    <tbody></tbody>
-  </table>
+    <h2>Existing Entries</h2>
+    <table id="entriesTable">
+        <thead>
+            <tr>
+                <th>Asset Code</th>
+                <th>Incident Date</th>
+                <th>Time of Breakdown</th>
+                <th>Time of Startup</th>
+                <th>Artisans on Job</th>
+                <th>Priority</th>
+                <th>Task Performed</th>
+                <th>Findings</th>
+                <th>Action Taken</th>
+                <th>Comments</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
 
-  <script>
-    document.addEventListener("DOMContentLoaded", () => {
-      ////////////////////////////////////////////////////////////////////////////
-      // 1) IndexedDB Setup
-      ////////////////////////////////////////////////////////////////////////////
-      const DB_NAME = 'RootCauseDB';
-      const DB_VERSION = 1;
-      const STORE_NAME = 'analysis';
-      let db;
-      let entries = []; // In-memory array of all entries
+    <div id="toast" class="toast"></div>
 
-      function openDatabase() {
-        return new Promise((resolve, reject) => {
-          const request = indexedDB.open(DB_NAME, DB_VERSION);
-          request.onerror = event => {
-            console.error("Database error:", event.target.error);
-            reject(event.target.error);
-          };
-          request.onupgradeneeded = event => {
-            db = event.target.result;
-            if (!db.objectStoreNames.contains(STORE_NAME)) {
-              db.createObjectStore(STORE_NAME, { keyPath: 'id', autoIncrement: true });
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            // Toast notification function
+            function showToast(message) {
+                const toast = document.getElementById("toast");
+                toast.textContent = message;
+                toast.classList.add("show");
+                setTimeout(() => {
+                    toast.classList.remove("show");
+                }, 3000); // 3 seconds
             }
-          };
-          request.onsuccess = event => {
-            db = event.target.result;
-            resolve(db);
-          };
-        });
-      }
 
-      function getAllEntriesFromDB() {
-        return new Promise((resolve, reject) => {
-          const transaction = db.transaction([STORE_NAME], 'readonly');
-          const store = transaction.objectStore(STORE_NAME);
-          const request = store.getAll();
-          request.onsuccess = event => resolve(event.target.result);
-          request.onerror = event => reject(event.target.error);
-        });
-      }
+            ////////////////////////////////////////////////////////////////////////////
+            // 1) IndexedDB Setup
+            ////////////////////////////////////////////////////////////////////////////
+            const DB_NAME = 'RootCauseDB';
+            const DB_VERSION = 1;
+            const STORE_NAME = 'analysis';
+            let db;
+            let entries = []; // In-memory array of all entries
 
-      function addEntryToDB(entry) {
-        return new Promise((resolve, reject) => {
-          const transaction = db.transaction([STORE_NAME], 'readwrite');
-          const store = transaction.objectStore(STORE_NAME);
-          const request = store.add(entry);
-          request.onsuccess = event => {
-            entry.id = event.target.result;
-            resolve(entry);
-          };
-          request.onerror = event => reject(event.target.error);
-        });
-      }
-
-      function updateEntryInDB(entry) {
-        return new Promise((resolve, reject) => {
-          const transaction = db.transaction([STORE_NAME], 'readwrite');
-          const store = transaction.objectStore(STORE_NAME);
-          const request = store.put(entry);
-          request.onsuccess = () => resolve();
-          request.onerror = event => reject(event.target.error);
-        });
-      }
-
-      function removeEntryFromDB(id) {
-        return new Promise((resolve, reject) => {
-          const transaction = db.transaction([STORE_NAME], 'readwrite');
-          const store = transaction.objectStore(STORE_NAME);
-          const request = store.delete(id);
-          request.onsuccess = () => resolve();
-          request.onerror = event => reject(event.target.error);
-        });
-      }
-
-      function clearAllEntriesFromDB() {
-        return new Promise((resolve, reject) => {
-          const transaction = db.transaction([STORE_NAME], 'readwrite');
-          const store = transaction.objectStore(STORE_NAME);
-          const request = store.clear();
-          request.onsuccess = () => resolve();
-          request.onerror = event => reject(event.target.error);
-        });
-      }
-
-      async function refreshEntries() {
-        try {
-          entries = await getAllEntriesFromDB();
-          renderEntries();
-        } catch (err) {
-          console.error("Error refreshing entries:", err);
-        }
-      }
-
-      ////////////////////////////////////////////////////////////////////////////
-      // 2) DOM Elements
-      ////////////////////////////////////////////////////////////////////////////
-      const codeSuggestions     = document.getElementById('codeSuggestions');
-      const entryForm           = document.getElementById('entryForm');
-      const assetCodeInput      = document.getElementById('assetCodeInput');
-      const incidentDateInput   = document.getElementById('incidentDateInput');
-      const breakdownTimeInput  = document.getElementById('breakdownTimeInput');
-      const startupTimeInput    = document.getElementById('startupTimeInput');
-      const artisansInput       = document.getElementById('artisansInput');
-      const priorityInput       = document.getElementById('priorityInput');
-      const taskPerformedInput  = document.getElementById('taskPerformedInput');
-      const findingsInput       = document.getElementById('findingsInput');
-      const actionTakenInput    = document.getElementById('actionTakenInput');
-      const commentsInput       = document.getElementById('commentsInput');
-
-      const entriesTableBody    = document.querySelector('#entriesTable tbody');
-      const generatePdfButton   = document.getElementById('generatePdf');
-      const clearAllButton      = document.getElementById('clearAll');
-      const pdfOrientationSelect= document.getElementById('pdfOrientation');
-
-      ////////////////////////////////////////////////////////////////////////////
-      // 3) DataList for Asset Code Suggestions
-      ////////////////////////////////////////////////////////////////////////////
-      let allCodes = [];
-      fetch('assetCodes.txt')
-        .then(res => {
-          if (!res.ok) throw new Error('Could not load assetCodes.txt');
-          return res.text();
-        })
-        .then(data => {
-          allCodes = data.split('\n')
-                         .map(line => line.trim())
-                         .filter(line => line !== '');
-        })
-        .catch(err => console.error("Error fetching assetCodes.txt:", err));
-
-      function updateCodeSuggestions() {
-        codeSuggestions.innerHTML = '';
-        const typed = assetCodeInput.value.trim().toLowerCase();
-        const MAX_SUGGESTIONS = 50;
-        if (!typed) return; // if no input, do not fill suggestions
-
-        const matched = allCodes.filter(code => code.toLowerCase().includes(typed));
-        matched.slice(0, MAX_SUGGESTIONS).forEach(code => {
-          const opt = document.createElement('option');
-          opt.value = code;
-          codeSuggestions.appendChild(opt);
-        });
-      }
-
-      // Update suggestions as the user types in the asset code
-      assetCodeInput.addEventListener('input', debounce(updateCodeSuggestions, 300));
-
-      ////////////////////////////////////////////////////////////////////////////
-      // 4) Debounce Helper
-      ////////////////////////////////////////////////////////////////////////////
-      function debounce(fn, delay) {
-        let timeout;
-        return (...args) => {
-          clearTimeout(timeout);
-          timeout = setTimeout(() => fn(...args), delay);
-        };
-      }
-
-      ////////////////////////////////////////////////////////////////////////////
-      // 5) Render the Table (All entries)
-      ////////////////////////////////////////////////////////////////////////////
-      function renderEntries() {
-        entriesTableBody.innerHTML = '';
-
-        // Show all entries, limit to 50 if needed
-        const rowsToShow = entries.slice(0, 50);
-
-        rowsToShow.forEach(entry => {
-          const row = document.createElement('tr');
-
-          // Asset Code
-          const assetTd = document.createElement('td');
-          assetTd.setAttribute('data-label', 'Asset Code');
-          const assetArea = document.createElement('textarea');
-          assetArea.value = entry.assetCode || '';
-          assetArea.style.width = '100%';
-          assetArea.rows = 1;
-          assetArea.oninput = () => {
-            entry.assetCode = assetArea.value;
-            updateEntryInDB(entry).catch(err => console.error("Error updating entry:", err));
-          };
-          assetTd.appendChild(assetArea);
-          row.appendChild(assetTd);
-
-          // Incident Date
-          const dateTd = document.createElement('td');
-          dateTd.setAttribute('data-label', 'Incident Date');
-          const dateArea = document.createElement('textarea');
-          dateArea.value = entry.incidentDate || '';
-          dateArea.style.width = '100%';
-          dateArea.rows = 1;
-          dateArea.oninput = () => {
-            entry.incidentDate = dateArea.value;
-            updateEntryInDB(entry).catch(err => console.error("Error updating entry:", err));
-          };
-          dateTd.appendChild(dateArea);
-          row.appendChild(dateTd);
-
-          // Time of Breakdown
-          const breakdownTd = document.createElement('td');
-          breakdownTd.setAttribute('data-label', 'Time of Breakdown');
-          const breakdownArea = document.createElement('textarea');
-          breakdownArea.value = entry.breakdownTime || '';
-          breakdownArea.style.width = '100%';
-          breakdownArea.rows = 1;
-          breakdownArea.oninput = () => {
-            entry.breakdownTime = breakdownArea.value;
-            updateEntryInDB(entry).catch(err => console.error("Error updating entry:", err));
-          };
-          breakdownTd.appendChild(breakdownArea);
-          row.appendChild(breakdownTd);
-
-          // Time of Startup
-          const startupTd = document.createElement('td');
-          startupTd.setAttribute('data-label', 'Time of Startup');
-          const startupArea = document.createElement('textarea');
-          startupArea.value = entry.startupTime || '';
-          startupArea.style.width = '100%';
-          startupArea.rows = 1;
-          startupArea.oninput = () => {
-            entry.startupTime = startupArea.value;
-            updateEntryInDB(entry).catch(err => console.error("Error updating entry:", err));
-          };
-          startupTd.appendChild(startupArea);
-          row.appendChild(startupTd);
-
-          // Artisans on Job
-          const artisansTd = document.createElement('td');
-          artisansTd.setAttribute('data-label', 'Artisans on Job');
-          const artisansArea = document.createElement('textarea');
-          artisansArea.value = entry.artisans || '';
-          artisansArea.style.width = '100%';
-          artisansArea.rows = 1;
-          artisansArea.oninput = () => {
-            entry.artisans = artisansArea.value;
-            updateEntryInDB(entry).catch(err => console.error("Error updating entry:", err));
-          };
-          artisansTd.appendChild(artisansArea);
-          row.appendChild(artisansTd);
-
-          // Priority
-          const priorityTd = document.createElement('td');
-          priorityTd.setAttribute('data-label', 'Priority');
-          const priorityArea = document.createElement('textarea');
-          priorityArea.value = entry.priority || '';
-          priorityArea.style.width = '100%';
-          priorityArea.rows = 1;
-          priorityArea.oninput = () => {
-            entry.priority = priorityArea.value;
-            updateEntryInDB(entry).catch(err => console.error("Error updating entry:", err));
-          };
-          priorityTd.appendChild(priorityArea);
-          row.appendChild(priorityTd);
-
-          // Task Performed
-          const taskTd = document.createElement('td');
-          taskTd.setAttribute('data-label', 'Task Performed');
-          const taskArea = document.createElement('textarea');
-          taskArea.value = entry.taskPerformed || '';
-          taskArea.style.width = '100%';
-          taskArea.rows = 2;
-          taskArea.oninput = () => {
-            entry.taskPerformed = taskArea.value;
-            updateEntryInDB(entry).catch(err => console.error("Error updating entry:", err));
-          };
-          taskTd.appendChild(taskArea);
-          row.appendChild(taskTd);
-
-          // Findings
-          const findingsTd = document.createElement('td');
-          findingsTd.setAttribute('data-label', 'Findings');
-          const findingsArea = document.createElement('textarea');
-          findingsArea.value = entry.findings || '';
-          findingsArea.style.width = '100%';
-          findingsArea.rows = 3;
-          findingsArea.oninput = () => {
-            entry.findings = findingsArea.value;
-            updateEntryInDB(entry).catch(err => console.error("Error updating entry:", err));
-          };
-          findingsTd.appendChild(findingsArea);
-          row.appendChild(findingsTd);
-
-          // Action Taken
-          const actionTd = document.createElement('td');
-          actionTd.setAttribute('data-label', 'Action Taken');
-          const actionArea = document.createElement('textarea');
-          actionArea.value = entry.actionTaken || '';
-          actionArea.style.width = '100%';
-          actionArea.rows = 2;
-          actionArea.oninput = () => {
-            entry.actionTaken = actionArea.value;
-            updateEntryInDB(entry).catch(err => console.error("Error updating entry:", err));
-          };
-          actionTd.appendChild(actionArea);
-          row.appendChild(actionTd);
-
-          // Comments
-          const commentsTd = document.createElement('td');
-          commentsTd.setAttribute('data-label', 'Comments');
-          const commentsArea = document.createElement('textarea');
-          commentsArea.value = entry.comments || '';
-          commentsArea.style.width = '100%';
-          commentsArea.rows = 2;
-          commentsArea.oninput = () => {
-            entry.comments = commentsArea.value;
-            updateEntryInDB(entry).catch(err => console.error("Error updating entry:", err));
-          };
-          commentsTd.appendChild(commentsArea);
-          row.appendChild(commentsTd);
-
-          // Actions (Delete button)
-          const actionsTd = document.createElement('td');
-          actionsTd.setAttribute('data-label', 'Actions');
-          const deleteBtn = document.createElement('button');
-          deleteBtn.textContent = 'Delete';
-          deleteBtn.onclick = () => {
-            if (confirm("Are you sure you want to delete this entry?")) {
-              removeEntryFromDB(entry.id)
-                .then(() => refreshEntries())
-                .catch(err => console.error("Error deleting entry:", err));
+            async function openDatabase() {
+                return new Promise((resolve, reject) => {
+                    const request = indexedDB.open(DB_NAME, DB_VERSION);
+                    request.onerror = event => {
+                        console.error("Database error:", event.target.error);
+                        showToast("Database error: " + event.target.error.message);
+                        reject(event.target.error);
+                    };
+                    request.onupgradeneeded = event => {
+                        db = event.target.result;
+                        if (!db.objectStoreNames.contains(STORE_NAME)) {
+                            db.createObjectStore(STORE_NAME, { keyPath: 'id', autoIncrement: true });
+                        }
+                    };
+                    request.onsuccess = event => {
+                        db = event.target.result;
+                        resolve(db);
+                    };
+                });
             }
-          };
-          actionsTd.appendChild(deleteBtn);
-          row.appendChild(actionsTd);
 
-          entriesTableBody.appendChild(row);
+            async function getAllEntriesFromDB() {
+                return new Promise((resolve, reject) => {
+                    const transaction = db.transaction([STORE_NAME], 'readonly');
+                    const store = transaction.objectStore(STORE_NAME);
+                    const request = store.getAll();
+                    request.onsuccess = event => resolve(event.target.result);
+                    request.onerror = event => {
+                        console.error("Error getting entries from DB:", event.target.error);
+                        showToast("Error loading entries: " + event.target.error.message);
+                        reject(event.target.error);
+                    };
+                });
+            }
+
+            async function addEntryToDB(entry) {
+                return new Promise((resolve, reject) => {
+                    const transaction = db.transaction([STORE_NAME], 'readwrite');
+                    const store = transaction.objectStore(STORE_NAME);
+                    const request = store.add(entry);
+                    request.onsuccess = event => {
+                        entry.id = event.target.result;
+                        showToast("Entry added successfully!");
+                        resolve(entry);
+                    };
+                    request.onerror = event => {
+                        console.error("Error adding entry to DB:", event.target.error);
+                        showToast("Error adding entry: " + event.target.error.message);
+                        reject(event.target.error);
+                    };
+                });
+            }
+
+            async function updateEntryInDB(entry) {
+                return new Promise((resolve, reject) => {
+                    const transaction = db.transaction([STORE_NAME], 'readwrite');
+                    const store = transaction.objectStore(STORE_NAME);
+                    const request = store.put(entry);
+                    request.onsuccess = () => {
+                        showToast("Entry updated successfully!");
+                        resolve();
+                    };
+                    request.onerror = event => {
+                        console.error("Error updating entry in DB:", event.target.error);
+                        showToast("Error updating entry: " + event.target.error.message);
+                        reject(event.target.error);
+                    };
+                });
+            }
+
+            async function removeEntryFromDB(id) {
+                return new Promise((resolve, reject) => {
+                    const transaction = db.transaction([STORE_NAME], 'readwrite');
+                    const store = transaction.objectStore(STORE_NAME);
+                    const request = store.delete(id);
+                    request.onsuccess = () => {
+                        showToast("Entry deleted successfully!");
+                        resolve();
+                    };
+                    request.onerror = event => {
+                        console.error("Error removing entry from DB:", event.target.error);
+                        showToast("Error deleting entry: " + event.target.error.message);
+                        reject(event.target.error);
+                    };
+                });
+            }
+
+            async function clearAllEntriesFromDB() {
+                return new Promise((resolve, reject) => {
+                    const transaction = db.transaction([STORE_NAME], 'readwrite');
+                    const store = transaction.objectStore(STORE_NAME);
+                    const request = store.clear();
+                    request.onsuccess = () => {
+                        showToast("All entries cleared!");
+                        resolve();
+                    };
+                    request.onerror = event => {
+                        console.error("Error clearing all entries from DB:", event.target.error);
+                        showToast("Error clearing entries: " + event.target.error.message);
+                        reject(event.target.error);
+                    };
+                });
+            }
+
+            async function refreshEntries() {
+                try {
+                    entries = await getAllEntriesFromDB();
+                    renderEntries();
+                } catch (err) {
+                    console.error("Error refreshing entries:", err);
+                }
+            }
+
+            ////////////////////////////////////////////////////////////////////////////
+            // 2) DOM Elements
+            ////////////////////////////////////////////////////////////////////////////
+            const codeSuggestions       = document.getElementById('codeSuggestions');
+            const entryForm             = document.getElementById('entryForm');
+            const assetCodeInput        = document.getElementById('assetCodeInput');
+            const incidentDateInput     = document.getElementById('incidentDateInput');
+            const breakdownTimeInput    = document.getElementById('breakdownTimeInput');
+            const startupTimeInput      = document.getElementById('startupTimeInput');
+            const artisansInput         = document.getElementById('artisansInput');
+            const priorityInput         = document.getElementById('priorityInput');
+            const taskPerformedInput    = document.getElementById('taskPerformedInput');
+            const findingsInput         = document.getElementById('findingsInput');
+            const actionTakenInput      = document.getElementById('actionTakenInput');
+            const commentsInput         = document.getElementById('commentsInput');
+
+            const entriesTableBody      = document.querySelector('#entriesTable tbody');
+            const generatePdfButton     = document.getElementById('generatePdf');
+            // NEW: Excel Button Reference
+            const generateExcelButton   = document.getElementById('generateExcel');
+            const clearAllButton        = document.getElementById('clearAll');
+            const pdfOrientationSelect  = document.getElementById('pdfOrientation');
+
+            ////////////////////////////////////////////////////////////////////////////
+            // 3) DataList for Asset Code Suggestions
+            ////////////////////////////////////////////////////////////////////////////
+            let allCodes = [];
+            fetch('assetCodes.txt')
+                .then(res => {
+                    if (!res.ok) {
+                        throw new Error(`HTTP error! status: ${res.status}`);
+                    }
+                    return res.text();
+                })
+                .then(data => {
+                    allCodes = data.split('\n')
+                                   .map(line => line.trim())
+                                   .filter(line => line !== '');
+                })
+                .catch(err => {
+                    console.error("Error fetching assetCodes.txt:", err);
+                    showToast("Could not load asset code suggestions. Please check 'assetCodes.txt'.");
+                });
+
+            function updateCodeSuggestions() {
+                codeSuggestions.innerHTML = '';
+                const typed = assetCodeInput.value.trim().toLowerCase();
+                const MAX_SUGGESTIONS = 50;
+                if (!typed) {
+                    return; // if no input, do not fill suggestions
+                }
+
+                const matched = allCodes.filter(code => code.toLowerCase().includes(typed));
+                matched.slice(0, MAX_SUGGESTIONS).forEach(code => {
+                    const opt = document.createElement('option');
+                    opt.value = code;
+                    codeSuggestions.appendChild(opt);
+                });
+            }
+
+            // Update suggestions as the user types in the asset code
+            assetCodeInput.addEventListener('input', debounce(updateCodeSuggestions, 300));
+
+            ////////////////////////////////////////////////////////////////////////////
+            // 4) Debounce Helper
+            ////////////////////////////////////////////////////////////////////////////
+            function debounce(fn, delay) {
+                let timeout;
+                return (...args) => {
+                    clearTimeout(timeout);
+                    timeout = setTimeout(() => fn(...args), delay);
+                };
+            }
+
+            ////////////////////////////////////////////////////////////////////////////
+            // 5) Render the Table (All entries)
+            ////////////////////////////////////////////////////////////////////////////
+            function renderEntries() {
+                entriesTableBody.innerHTML = '';
+
+                // Show all entries, limit to 50 if needed
+                const rowsToShow = entries.slice(0, 50);
+
+                rowsToShow.forEach(entry => {
+                    const row = document.createElement('tr');
+
+                    // Helper function to create editable textarea cells
+                    function createEditableCell(dataLabel, propName, rows = 1) {
+                        const td = document.createElement('td');
+                        td.setAttribute('data-label', dataLabel);
+                        const textarea = document.createElement('textarea');
+                        textarea.value = entry[propName] || '';
+                        textarea.style.width = '100%';
+                        textarea.rows = rows;
+                        textarea.oninput = debounce(() => { // Debounce updates to avoid excessive DB writes
+                            entry[propName] = textarea.value;
+                            updateEntryInDB(entry).catch(err => console.error(`Error updating ${propName}:`, err));
+                        }, 500); // 500ms debounce
+                        td.appendChild(textarea);
+                        return td;
+                    }
+
+                    row.appendChild(createEditableCell('Asset Code', 'assetCode', 1));
+                    row.appendChild(createEditableCell('Incident Date', 'incidentDate', 1));
+                    row.appendChild(createEditableCell('Time of Breakdown', 'breakdownTime', 1));
+                    row.appendChild(createEditableCell('Time of Startup', 'startupTime', 1));
+                    row.appendChild(createEditableCell('Artisans on Job', 'artisans', 1));
+                    row.appendChild(createEditableCell('Priority', 'priority', 1));
+                    row.appendChild(createEditableCell('Task Performed', 'taskPerformed', 2));
+                    row.appendChild(createEditableCell('Findings', 'findings', 3));
+                    row.appendChild(createEditableCell('Action Taken', 'actionTaken', 2));
+                    row.appendChild(createEditableCell('Comments', 'comments', 2));
+
+                    // Actions (Delete button)
+                    const actionsTd = document.createElement('td');
+                    actionsTd.setAttribute('data-label', 'Actions');
+                    const deleteBtn = document.createElement('button');
+                    deleteBtn.textContent = 'Delete';
+                    deleteBtn.onclick = async () => {
+                        if (confirm("Are you sure you want to delete this entry?")) {
+                            try {
+                                await removeEntryFromDB(entry.id);
+                                refreshEntries();
+                            } catch (err) {
+                                console.error("Error deleting entry:", err);
+                            }
+                        }
+                    };
+                    actionsTd.appendChild(deleteBtn);
+                    row.appendChild(actionsTd);
+
+                    entriesTableBody.appendChild(row);
+                });
+            }
+
+            ////////////////////////////////////////////////////////////////////////////
+            // 6) Add new entry => Reload
+            ////////////////////////////////////////////////////////////////////////////
+            entryForm.addEventListener('submit', async e => {
+                e.preventDefault();
+                const code             = assetCodeInput.value.trim();
+                const date             = incidentDateInput.value.trim();
+                const breakdownTime    = breakdownTimeInput.value.trim();
+                const startupTime      = startupTimeInput.value.trim();
+                const artisansVal      = artisansInput.value.trim();
+                const priorityVal      = priorityInput.value.trim();
+                const taskVal          = taskPerformedInput.value.trim();
+                const findingsVal      = findingsInput.value.trim();
+                const actionVal        = actionTakenInput.value.trim();
+                const commentsVal      = commentsInput.value.trim();
+
+                // Basic required checks
+                if (!code || !taskVal || !findingsVal || !actionVal) {
+                    showToast('Please fill out the required fields (Asset Code, Task, Findings, Action).');
+                    return;
+                }
+
+                // Validate time sequence
+                if (breakdownTime && startupTime) {
+                    const breakdownDateTime = new Date(`2000-01-01T${breakdownTime}`);
+                    const startupDateTime = new Date(`2000-01-01T${startupTime}`);
+                    if (startupDateTime < breakdownDateTime) {
+                        showToast('Startup Time cannot be before Breakdown Time.');
+                        return;
+                    }
+                }
+
+                const newEntry = {
+                    assetCode: code,
+                    incidentDate: date,
+                    breakdownTime: breakdownTime,
+                    startupTime: startupTime,
+                    artisans: artisansVal,
+                    priority: priorityVal,
+                    taskPerformed: taskVal,
+                    findings: findingsVal,
+                    actionTaken: actionVal,
+                    comments: commentsVal,
+                    timestamp: Date.now()
+                };
+
+                try {
+                    await addEntryToDB(newEntry);
+                    // Clear form fields after successful submission
+                    entryForm.reset();
+                    // Set incident date to today for convenience
+                    incidentDateInput.valueAsDate = new Date();
+                    refreshEntries();
+                } catch (err) {
+                    console.error("Error adding entry:", err);
+                }
+            });
+
+            ////////////////////////////////////////////////////////////////////////////
+            // 7) PDF Generation with auto row height
+            ////////////////////////////////////////////////////////////////////////////
+            generatePdfButton.addEventListener('click', () => {
+                const { jsPDF } = window.jspdf;
+                const orientation = pdfOrientationSelect.value; // 'l' or 'p'
+                const doc = new jsPDF(orientation, 'pt', 'letter');
+
+                const pageWidth = doc.internal.pageSize.getWidth();
+                const pageHeight = doc.internal.pageSize.getHeight();
+                const margin = 40;    // left/right margin
+                const startX = margin;
+                let currentY = margin;
+
+                // Define columns with full headers and their short versions
+                const columns = [
+                    { header: 'Asset Code', dataKey: 'assetCode', width: 60 },
+                    { header: 'Incident Date', dataKey: 'incidentDate', width: 60 },
+                    { header: 'Time of Breakdown', dataKey: 'breakdownTime', width: 70 },
+                    { header: 'Time of Startup', dataKey: 'startupTime', width: 70 },
+                    { header: 'Artisans on Job', dataKey: 'artisans', width: 70 },
+                    { header: 'Priority', dataKey: 'priority', width: 40 },
+                    { header: 'Task Performed', dataKey: 'taskPerformed', width: 80 },
+                    { header: 'Findings', dataKey: 'findings', width: 80 },
+                    { header: 'Action Taken', dataKey: 'actionTaken', width: 80 },
+                    { header: 'Comments', dataKey: 'comments', width: 80 }
+                ];
+
+                const tableW = columns.reduce((acc, col) => acc + col.width, 0);
+
+                const headerHeight = 25;
+                const lineHeight = 12; // line height for text
+                const topBottomPad = 6;  // vertical padding in each row
+
+                doc.setFontSize(14);
+                doc.text('Root Cause Analysis Report', pageWidth / 2, currentY, { align: 'center' });
+                currentY += 30; // Increased spacing for the main title
+
+                // Draw table header with improved wrapping for long headers
+                function drawTableHeader(yPos) {
+                    drawRowBorder(yPos, headerHeight, columns, startX);
+                    doc.setFontSize(10);
+                    doc.setFont(undefined, 'bold'); // Make headers bold
+
+                    let xPos = startX;
+                    columns.forEach(col => {
+                        const wrappedHeader = doc.splitTextToSize(col.header, col.width - 10); // 10pt for padding
+                        doc.text(wrappedHeader, xPos + 5, yPos + (headerHeight / 2) - (wrappedHeader.length * lineHeight / 2) + (lineHeight / 2));
+                        xPos += col.width;
+                    });
+                    doc.setFont(undefined, 'normal'); // Reset font style
+                }
+
+                function drawRowBorder(y, height, cols, startXCoord) {
+                    // horizontal top + bottom
+                    doc.line(startXCoord, y, startXCoord + tableW, y);
+                    doc.line(startXCoord, y + height, startXCoord + tableW, y + height);
+
+                    // vertical col lines
+                    let xPos = startXCoord;
+                    for (let col of cols) {
+                        doc.line(xPos, y, xPos, y + height);
+                        xPos += col.width;
+                    }
+                    doc.line(xPos, y, xPos, y + height); // Last vertical line
+                }
+
+                drawTableHeader(currentY);
+                currentY += headerHeight;
+
+                doc.setFontSize(9);
+
+                for (let entry of entries) {
+                    let wrappedTexts = {};
+                    let maxLines = 1; // Minimum 1 line for every cell
+
+                    // Split text for each column and find max lines
+                    columns.forEach(col => {
+                        const text = entry[col.dataKey] || '';
+                        wrappedTexts[col.dataKey] = doc.splitTextToSize(text, col.width - 10);
+                        if (wrappedTexts[col.dataKey].length > maxLines) {
+                            maxLines = wrappedTexts[col.dataKey].length;
+                        }
+                    });
+
+                    let rowHeight = (maxLines * lineHeight) + topBottomPad;
+
+                    // check page break
+                    if (currentY + rowHeight > pageHeight - margin) {
+                        doc.addPage();
+                        currentY = margin;
+                        drawTableHeader(currentY);
+                        currentY += headerHeight;
+                    }
+
+                    // draw row border
+                    drawRowBorder(currentY, rowHeight, columns, startX);
+
+                    let textX = startX;
+                    let textY = currentY + topBottomPad / 2 + lineHeight; // First line baseline, adjusted for top padding
+
+                    columns.forEach(col => {
+                        doc.text(wrappedTexts[col.dataKey], textX + 5, textY);
+                        textX += col.width;
+                    });
+
+                    currentY += rowHeight;
+                }
+
+                doc.save('root_cause_analysis.pdf');
+                showToast("PDF generated successfully!");
+            });
+
+            ////////////////////////////////////////////////////////////////////////////
+            // NEW: 8) Excel Generation
+            ////////////////////////////////////////////////////////////////////////////
+            generateExcelButton.addEventListener('click', () => {
+                if (entries.length === 0) {
+                    showToast("No data to export to Excel.");
+                    return;
+                }
+
+                const dataForExcel = entries.map(entry => ({
+                    'Asset Code': entry.assetCode,
+                    'Incident Date': entry.incidentDate,
+                    'Time of Breakdown': entry.breakdownTime,
+                    'Time of Startup': entry.startupTime,
+                    'Artisans on Job': entry.artisans,
+                    'Priority': entry.priority,
+                    'Task Performed': entry.taskPerformed,
+                    'Findings': entry.findings,
+                    'Action Taken': entry.actionTaken,
+                    'Comments': entry.comments
+                }));
+
+                const worksheet = XLSX.utils.json_to_sheet(dataForExcel);
+                const workbook = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(workbook, worksheet, 'Root Cause Analysis');
+
+                // Get current date for filename
+                const today = new Date();
+                const dateString = today.getFullYear() + '-' +
+                                   String(today.getMonth() + 1).padStart(2, '0') + '-' +
+                                   String(today.getDate()).padStart(2, '0');
+                const filename = `root_cause_analysis_${dateString}.xlsx`;
+
+                XLSX.writeFile(workbook, filename);
+                showToast("Excel spreadsheet generated successfully!");
+            });
+
+            ////////////////////////////////////////////////////////////////////////////
+            // 9) Clear All
+            ////////////////////////////////////////////////////////////////////////////
+            clearAllButton.addEventListener('click', async () => {
+                if (confirm("Are you sure you want to clear all entries? This action cannot be undone.")) {
+                    try {
+                        await clearAllEntriesFromDB();
+                        refreshEntries();
+                    } catch (err) {
+                        console.error("Error clearing entries:", err);
+                    }
+                }
+            });
+
+            ////////////////////////////////////////////////////////////////////////////
+            // 10) On load: open DB, load entries, set default date
+            ////////////////////////////////////////////////////////////////////////////
+            openDatabase()
+                .then(() => {
+                    refreshEntries();
+                    // Set incident date to today on load
+                    incidentDateInput.valueAsDate = new Date();
+                })
+                .catch(err => console.error("Failed to open database:", err));
         });
-      }
-
-      ////////////////////////////////////////////////////////////////////////////
-      // 6) Add new entry => Reload
-      ////////////////////////////////////////////////////////////////////////////
-      entryForm.addEventListener('submit', e => {
-        e.preventDefault();
-        const code           = assetCodeInput.value.trim();
-        const date           = incidentDateInput.value.trim();
-        const breakdownTime  = breakdownTimeInput.value.trim();
-        const startupTime    = startupTimeInput.value.trim();
-        const artisansVal    = artisansInput.value.trim();
-        const priorityVal    = priorityInput.value.trim();
-        const taskVal        = taskPerformedInput.value.trim();
-        const findingsVal    = findingsInput.value.trim();
-        const actionVal      = actionTakenInput.value.trim();
-        const commentsVal    = commentsInput.value.trim();
-
-        // Basic required checks
-        if (!code || !taskVal || !findingsVal || !actionVal) {
-          alert('Please fill out the required fields (Asset Code, Task, Findings, Action).');
-          return;
-        }
-
-        const newEntry = {
-          assetCode: code,
-          incidentDate: date,
-          breakdownTime: breakdownTime,
-          startupTime: startupTime,
-          artisans: artisansVal,
-          priority: priorityVal,
-          taskPerformed: taskVal,
-          findings: findingsVal,
-          actionTaken: actionVal,
-          comments: commentsVal,
-          timestamp: Date.now()
-        };
-
-        addEntryToDB(newEntry)
-          .then(() => {
-            // Reload to ensure the new entry is visible
-            location.reload();
-          })
-          .catch(err => console.error("Error adding entry:", err));
-      });
-
-      ////////////////////////////////////////////////////////////////////////////
-      // 7) PDF Generation with auto row height
-      ////////////////////////////////////////////////////////////////////////////
-      generatePdfButton.addEventListener('click', () => {
-        const { jsPDF } = window.jspdf;
-        const orientation = pdfOrientationSelect.value; // 'l' or 'p'
-        const doc = new jsPDF(orientation, 'pt', 'letter');
-
-        const pageWidth = doc.internal.pageSize.getWidth();
-        const pageHeight = doc.internal.pageSize.getHeight();
-        const margin = 40;   // left/right margin
-        const startX = margin;
-        let currentY = margin;
-
-        /*
-          We'll define columns with short headers:
-          1) Asset (60)
-          2) Date (60)
-          3) Breakdown (70)
-          4) Startup (70)
-          5) Artisans (70)
-          6) Prio (40)
-          7) Task (80)
-          8) Findings (80)
-          9) Action (80)
-          10) Comments (80)
-        */
-        const colAssetW    = 60;
-        const colDateW     = 60;
-        const colBreakW    = 70;
-        const colStartW    = 70;
-        const colArtisanW  = 70;
-        const colPrioW     = 40;
-        const colTaskW     = 80;
-        const colFindW     = 80;
-        const colActionW   = 80;
-        const colCommW     = 80;
-
-        const tableW = colAssetW + colDateW + colBreakW + colStartW + colArtisanW
-                     + colPrioW + colTaskW + colFindW + colActionW + colCommW;
-
-        const headerHeight = 25;
-        const lineHeight   = 12; // line height for text
-        const topBottomPad = 6;  // vertical padding in each row
-
-        doc.setFontSize(12);
-        doc.text('Root Cause Analysis', startX, currentY);
-        currentY += 20;
-
-        // Draw table header
-        function drawTableHeader(yPos) {
-          drawRowBorder(yPos, headerHeight);
-          doc.setFontSize(10);
-
-          let xPos = startX + 5;
-          doc.text('Asset',      xPos, yPos + 15); xPos += colAssetW;
-          doc.text('Date',       xPos, yPos + 15); xPos += colDateW;
-          doc.text('Breakdown',  xPos, yPos + 15); xPos += colBreakW;
-          doc.text('Startup',    xPos, yPos + 15); xPos += colStartW;
-          doc.text('Artisans',   xPos, yPos + 15); xPos += colArtisanW;
-          doc.text('Prio',       xPos, yPos + 15); xPos += colPrioW;
-          doc.text('Task',       xPos, yPos + 15); xPos += colTaskW;
-          doc.text('Findings',   xPos, yPos + 15); xPos += colFindW;
-          doc.text('Action',     xPos, yPos + 15); xPos += colActionW;
-          doc.text('Comments',   xPos, yPos + 15);
-        }
-
-        function drawRowBorder(y, height) {
-          // horizontal top + bottom
-          doc.line(startX, y, startX + tableW, y);
-          doc.line(startX, y + height, startX + tableW, y + height);
-
-          // vertical col lines
-          let xPos = startX;
-          const colWidths = [
-            colAssetW, colDateW, colBreakW, colStartW, colArtisanW,
-            colPrioW, colTaskW, colFindW, colActionW, colCommW
-          ];
-          for (let w of colWidths) {
-            doc.line(xPos, y, xPos, y + height);
-            xPos += w;
-          }
-          doc.line(xPos, y, xPos, y + height);
-        }
-
-        drawTableHeader(currentY);
-        currentY += headerHeight;
-
-        doc.setFontSize(9);
-
-        // We'll render ALL entries (no filter)
-        for (let entry of entries) {
-          // Split text for each column
-          let wrapAsset    = doc.splitTextToSize(entry.assetCode        || '', colAssetW   - 10);
-          let wrapDate     = doc.splitTextToSize(entry.incidentDate     || '', colDateW    - 10);
-          let wrapBreak    = doc.splitTextToSize(entry.breakdownTime    || '', colBreakW   - 10);
-          let wrapStart    = doc.splitTextToSize(entry.startupTime      || '', colStartW   - 10);
-          let wrapArtisan  = doc.splitTextToSize(entry.artisans         || '', colArtisanW - 10);
-          let wrapPrio     = doc.splitTextToSize(entry.priority         || '', colPrioW    - 10);
-          let wrapTask     = doc.splitTextToSize(entry.taskPerformed    || '', colTaskW    - 10);
-          let wrapFind     = doc.splitTextToSize(entry.findings         || '', colFindW    - 10);
-          let wrapAction   = doc.splitTextToSize(entry.actionTaken      || '', colActionW  - 10);
-          let wrapComments = doc.splitTextToSize(entry.comments         || '', colCommW    - 10);
-
-          // find the max number of lines among these columns
-          let linesCount = [
-            wrapAsset.length, wrapDate.length, wrapBreak.length, wrapStart.length, wrapArtisan.length,
-            wrapPrio.length, wrapTask.length, wrapFind.length, wrapAction.length, wrapComments.length
-          ];
-          let maxLines = Math.max(...linesCount);
-          let rowHeight = (maxLines * lineHeight) + topBottomPad;
-
-          // check page break
-          if (currentY + rowHeight > pageHeight - margin) {
-            doc.addPage();
-            currentY = margin;
-            drawTableHeader(currentY);
-            currentY += headerHeight;
-          }
-
-          // draw row border
-          drawRowBorder(currentY, rowHeight);
-
-          let textX = startX + 5;
-          let textY = currentY + lineHeight; // first line baseline
-
-          doc.text(wrapAsset,    textX, textY); textX += colAssetW;
-          doc.text(wrapDate,     textX, textY); textX += colDateW;
-          doc.text(wrapBreak,    textX, textY); textX += colBreakW;
-          doc.text(wrapStart,    textX, textY); textX += colStartW;
-          doc.text(wrapArtisan,  textX, textY); textX += colArtisanW;
-          doc.text(wrapPrio,     textX, textY); textX += colPrioW;
-          doc.text(wrapTask,     textX, textY); textX += colTaskW;
-          doc.text(wrapFind,     textX, textY); textX += colFindW;
-          doc.text(wrapAction,   textX, textY); textX += colActionW;
-          doc.text(wrapComments, textX, textY);
-
-          currentY += rowHeight;
-        }
-
-        doc.save('root_cause_analysis.pdf');
-      });
-
-      ////////////////////////////////////////////////////////////////////////////
-      // 8) Clear All
-      ////////////////////////////////////////////////////////////////////////////
-      clearAllButton.addEventListener('click', async () => {
-        if (confirm("Are you sure you want to clear all entries? This action cannot be undone.")) {
-          try {
-            await clearAllEntriesFromDB();
-            refreshEntries();
-          } catch (err) {
-            console.error("Error clearing entries:", err);
-          }
-        }
-      });
-
-      ////////////////////////////////////////////////////////////////////////////
-      // 9) On load: open DB, load entries
-      ////////////////////////////////////////////////////////////////////////////
-      openDatabase()
-        .then(() => refreshEntries())
-        .catch(err => console.error("Failed to open database:", err));
-    });
-  </script>
+    </script>
 </body>
 </html>
